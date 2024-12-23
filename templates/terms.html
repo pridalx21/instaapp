@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutzungsbedingungen - Instagram Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Nutzungsbedingungen</h1>
+        
+        <div class="content">
+            <h2>1. Allgemeines</h2>
+            <p>Diese Nutzungsbedingungen regeln die Nutzung der Instagram-Manager-Anwendung.</p>
+
+            <h2>2. Nutzung der App</h2>
+            <p>Die App dient ausschließlich der Verwaltung von Instagram-Beiträgen und -Medien. Der Nutzer verpflichtet sich:</p>
+            <ul>
+                <li>Die App nur für legale Zwecke zu nutzen</li>
+                <li>Keine schädlichen oder missbräuchlichen Inhalte zu posten</li>
+                <li>Die Instagram-Richtlinien einzuhalten</li>
+            </ul>
+
+            <h2>3. Instagram API</h2>
+            <p>Die App nutzt die Instagram API unter Einhaltung der Meta-Plattform-Richtlinien. Der Nutzer erklärt sich damit einverstanden, dass:</p>
+            <ul>
+                <li>Nur autorisierte Zugriffe auf Instagram-Daten erfolgen</li>
+                <li>Die Nutzung im Rahmen der Instagram API-Nutzungsbedingungen erfolgt</li>
+            </ul>
+
+            <h2>4. Haftungsausschluss</h2>
+            <p>Die App wird "wie sie ist" zur Verfügung gestellt. Wir übernehmen keine Garantie für:</p>
+            <ul>
+                <li>Ununterbrochene Verfügbarkeit</li>
+                <li>Fehlerfreie Funktionalität</li>
+                <li>Eignung für bestimmte Zwecke</li>
+            </ul>
+
+            <h2>5. Änderungen</h2>
+            <p>Wir behalten uns das Recht vor, diese Nutzungsbedingungen jederzeit zu ändern. Wesentliche Änderungen werden den Nutzern mitgeteilt.</p>
+        </div>
+
+        <div style="margin-top: 2rem; text-align: center;">
+            <a href="{{ url_for('index') }}" class="btn">Zurück zur Startseite</a>
+        </div>
+    </div>
+</body>
+</html>

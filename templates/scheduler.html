@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beiträge Planen</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f6f9fc 0%, #eef2f7 100%);
+            color: #1a1f36;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #405DE6, #5851DB, #833AB4, #C13584, #E1306C, #FD1D1D);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #4f566b;
+            font-size: 1.1em;
+        }
+
+        .post-card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+            position: relative;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .post-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #1a1f36;
+        }
+
+        textarea, input[type="datetime-local"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e3e8ef;
+            border-radius: 8px;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+        }
+
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        textarea:focus, input:focus {
+            outline: none;
+            border-color: #6772e5;
+            box-shadow: 0 0 0 3px rgba(103,114,229,0.1);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .file-input-button {
+            display: block;
+            padding: 12px;
+            background: #f8fafc;
+            border: 2px dashed #e3e8ef;
+            border-radius: 8px;
+            text-align: center;
+            color: #4f566b;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-wrapper:hover .file-input-button {
+            border-color: #6772e5;
+            color: #6772e5;
+        }
+
+        .remove-post {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: none;
+            background: #fee2e2;
+            color: #dc2626;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .remove-post:hover {
+            background: #dc2626;
+            color: white;
+            transform: rotate(90deg);
+        }
+
+        .add-post-btn {
+            width: 100%;
+            padding: 15px;
+            background: #dcf7ec;
+            color: #0c622e;
+            border: 2px dashed #0c622e;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            margin: 20px 0;
+        }
+
+        .add-post-btn:hover {
+            background: #0c622e;
+            color: white;
+        }
+
+        .schedule-all-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(45deg, #405DE6, #5851DB, #833AB4);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .schedule-all-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50,50,93,0.1);
+        }
+
+        .preview-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e3e8ef;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .preview-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .preview-details {
+            flex: 1;
+        }
+
+        .preview-caption {
+            color: #4f566b;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .preview-time {
+            color: #6772e5;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .back-btn {
+            display: inline-block;
+            padding: 12px 24px;
+            color: #4f566b;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: rgba(0,0,0,0.05);
+        }
+
+        .flash {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .flash.error {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .flash.success {
+            background: #dcf7ec;
+            color: #0c622e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Socia lMedia Beiträge Planen</h1>
+            <p>Plane mehrere Beiträge für die kommenden Tage</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <form id="schedulerForm" action="{{ url_for('schedule_posts') }}" method="POST" enctype="multipart/form-data">
+                <div class="posts-container" id="postsContainer">
+                    <!-- Post templates will be added here -->
+                </div>
+                
+                <button type="button" class="add-post-btn" id="addPostBtn">
+                    + Neuen Beitrag hinzufügen
+                </button>
+
+                <button type="submit" class="schedule-all-btn">
+                    Alle Beiträge planen
+                </button>
+            </form>
+
+            <div class="buttons-container">
+                <a href="{{ url_for('index') }}" class="back-btn">Zurück zur Startseite</a>
+            </div>
+        </div>
+    </div>
+
+    <template id="postTemplate">
+        <div class="post-card">
+            <button type="button" class="remove-post" onclick="removePost(this)">×</button>
+            
+            <div class="form-group">
+                <label>📝 Bildunterschrift</label>
+                <textarea name="captions[]" required placeholder="Erzähle deine Geschichte..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>🖼️ Bild</label>
+                <div class="file-input-wrapper">
+                    <div class="file-input-button">Bild auswählen oder hierher ziehen</div>
+                    <input type="file" name="images[]" accept="image/*" required onchange="previewImage(this)">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>🕒 Zeitplan</label>
+                <input type="datetime-local" name="schedules[]" required>
+            </div>
+
+            <div class="preview-section">
+                <img class="preview-image" src="" alt="" style="display: none;">
+                <div class="preview-details">
+                    <div class="preview-caption"></div>
+                    <div class="preview-time"></div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="/static/js/script.js"></script>
+    <script>
+        const postsContainer = document.getElementById('postsContainer');
+        const postTemplate = document.getElementById('postTemplate');
+        const addPostBtn = document.getElementById('addPostBtn');
+
+        // Add first post on page load
+        window.addEventListener('load', () => addNewPost());
+
+        addPostBtn.addEventListener('click', addNewPost);
+
+        function addNewPost() {
+            const newPost = document.importNode(postTemplate.content, true);
+            const dateInput = newPost.querySelector('input[type="datetime-local"]');
+            
+            // Set min datetime to current time
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            dateInput.min = now.toISOString().slice(0,16);
+            
+            postsContainer.appendChild(newPost);
+            updatePreviewListeners(postsContainer.lastElementChild);
+        }
+
+        function removePost(btn) {
+            const postCard = btn.closest('.post-card');
+            if (document.querySelectorAll('.post-card').length > 1) {
+                postCard.remove();
+            }
+        }
+
+        function updatePreviewListeners(postCard) {
+            const caption = postCard.querySelector('textarea');
+            const dateInput = postCard.querySelector('input[type="datetime-local"]');
+            const previewCaption = postCard.querySelector('.preview-caption');
+            const previewTime = postCard.querySelector('.preview-time');
+
+            caption.addEventListener('input', () => {
+                previewCaption.textContent = caption.value.substring(0, 100) + 
+                    (caption.value.length > 100 ? '...' : '');
+            });
+
+            dateInput.addEventListener('change', () => {
+                const date = new Date(dateInput.value);
+                previewTime.textContent = date.toLocaleString('de-DE', {
+                    dateStyle: 'medium',
+                /**
+                 * timeStyle:
+                 *   - 'long': 20. Januar 2023, 14:30:00
+                 *   - 'short': 20.01.2023, 14:30
+                 *   - 'narrow': 20.1.2023, 14:30
+                 *   - 'medium': 20. Januar 2023, 14:30 Uhr
+                 */
+                    timeStyle: 'short'
+                });
+            });
+        }
+
+        function previewImage(input) {
+            const postCard = input.closest('.post-card');
+            const preview = postCard.querySelector('.preview-image');
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+</body>
+</html>
