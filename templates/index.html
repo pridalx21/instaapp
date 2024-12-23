@@ -64,17 +64,16 @@
     </style>
 </head>
 <body>
-    <!-- Facebook SDK -->
     <script>
         window.fbAsyncInit = function() {
             FB.init({
-                appId      : '1672953986597793',
-                cookie     : true,
+                appId      : '1558999001389004',
                 xfbml      : true,
-                version    : 'v18.0'
+                version    : 'v21.0'
             });
+            FB.AppEvents.logPageView();
         };
-    
+
         (function(d, s, id){
             var js, fjs = d.getElementsByTagName(s)[0];
             if (d.getElementById(id)) {return;}
