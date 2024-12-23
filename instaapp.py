@@ -43,7 +43,7 @@ def get_instagram_settings():
     return settings
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
+app.secret_key = os.getenv('SECRET_KEY', 'dev_key_123')  # Sicherer Secret Key für Sessions
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
 
