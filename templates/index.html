@@ -100,15 +100,26 @@
             {% else %}
                 <div class="auth-section">
                     <h2>Mit Instagram verbinden</h2>
+                    <div id="fb-root"></div>
                     <div class="fb-login-button" 
                          data-width="" 
                          data-size="large" 
                          data-button-type="continue_with" 
-                         data-layout="default" 
+                         data-layout="rounded" 
                          data-auto-logout-link="false" 
-                         data-use-continue-as="false"
-                         data-scope="instagram_basic,instagram_content_publish,pages_show_list"
-                         data-redirect-uri="{{ url_for('facebook_callback', _external=True) }}"></div>
+                         data-use-continue-as="true"
+                         data-scope="instagram_basic,instagram_content_publish,pages_read_engagement"
+                         data-onlogin="checkLoginState();">
+                    </div>
+                    <script>
+                        function checkLoginState() {
+                            FB.getLoginStatus(function(response) {
+                                if (response.status === 'connected') {
+                                    window.location.href = '/auth';
+                                }
+                            });
+                        }
+                    </script>
                     <div class="legal-links" style="margin-top: 20px; font-size: 0.8em;">
                         <a href="https://sweet-duckanoo-6df0e5.netlify.app/privacy-policy" target="_blank">Datenschutzerklärung</a> | 
                         <a href="https://sweet-duckanoo-6df0e5.netlify.app/terms" target="_blank">Nutzungsbedingungen</a>
