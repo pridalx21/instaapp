@@ -311,6 +311,10 @@ def dashboard():
 def facebook_login():
     return render_template('facebook_login.html')
 
+@app.route('/data-deletion')
+def data_deletion():
+    return render_template('data_deletion.html')
+
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy.html')
