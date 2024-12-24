@@ -165,5 +165,12 @@ def schedule_post():
     flash('Ungültiger Dateityp', 'error')
     return redirect(url_for('scheduler'))
 
+@app.route('/instagram-login')
+def instagram_login():
+    settings = get_instagram_settings()
+    scopes = 'instagram_basic,instagram_content_publish'
+    auth_url = f'https://api.instagram.com/oauth/authorize?client_id={settings["INSTAGRAM_CLIENT_ID"]}&redirect_uri={settings["INSTAGRAM_REDIRECT_URI"]}&scope={scopes}&response_type=code'
+    return redirect(auth_url)
+
 if __name__ == '__main__':
     app.run(debug=True)
