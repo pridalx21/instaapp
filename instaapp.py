@@ -311,5 +311,13 @@ def dashboard():
 def facebook_login():
     return render_template('facebook_login.html')
 
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy.html')
+
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
+
 if __name__ == '__main__':
     app.run(debug=True)
