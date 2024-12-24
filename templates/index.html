@@ -68,20 +68,32 @@
         window.fbAsyncInit = function() {
             FB.init({
                 appId      : '1558999001389004',
+                cookie     : true,
                 xfbml      : true,
-                version    : 'v21.0'
+                version    : 'v18.0'
             });
-            FB.AppEvents.logPageView();
         };
 
-        (function(d, s, id){
+        (function(d, s, id) {
             var js, fjs = d.getElementsByTagName(s)[0];
-            if (d.getElementById(id)) {return;}
+            if (d.getElementById(id)) return;
             js = d.createElement(s); js.id = id;
             js.src = "https://connect.facebook.net/de_DE/sdk.js";
             fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'facebook-jssdk'));
+
+        function checkLoginState() {
+            FB.getLoginStatus(function(response) {
+                if (response.status === 'connected') {
+                    // Token an Backend senden
+                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
+                } else {
+                    console.log('Nicht eingeloggt');
+                }
+            });
+        }
     </script>
+
     <div class="container">
         <div class="header">
             <h1>Instagram Manager</h1>
@@ -96,10 +108,11 @@
         <div class="content">
             {% if session.get('instagram_access_token') %}
                 <p>Mit Instagram verbunden</p>
-                <a href="{{ url_for('scheduler') }}" class="btn">Posts planen</a>
+                <a href="{{ url_for('dashboard') }}" class="btn">Zum Dashboard</a>
             {% else %}
                 <div class="auth-section">
                     <h2>Mit Instagram verbinden</h2>
+                    <p>Verbinden Sie Ihr Instagram-Konto über Facebook</p>
                     <div id="fb-root"></div>
                     <div class="fb-login-button" 
                          data-width="" 
@@ -110,19 +123,6 @@
                          data-use-continue-as="true"
                          data-scope="instagram_basic,instagram_content_publish,pages_read_engagement,pages_show_list"
                          data-onlogin="checkLoginState();">
-                    </div>
-                    <script>
-                        function checkLoginState() {
-                            FB.getLoginStatus(function(response) {
-                                if (response.status === 'connected') {
-                                    window.location.href = '/auth';
-                                }
-                            });
-                        }
-                    </script>
-                    <div class="legal-links" style="margin-top: 20px; font-size: 0.8em;">
-                        <a href="https://sweet-duckanoo-6df0e5.netlify.app/privacy-policy" target="_blank">Datenschutzerklärung</a> | 
-                        <a href="https://sweet-duckanoo-6df0e5.netlify.app/terms" target="_blank">Nutzungsbedingungen</a>
                     </div>
                 </div>
             {% endif %}

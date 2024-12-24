@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<script>
+  function statusChangeCallback(response) {
+    console.log('statusChangeCallback');
+    console.log(response);
+    if (response.status === 'connected') {
+      // Erfolgreich eingeloggt - Weiterleitung zur Instagram-Authentifizierung
+      window.location.href = '/auth';
+    } else {
+      document.getElementById('status').innerHTML = 'Bitte loggen Sie sich ein.';
+    }
+  }
+
+  function checkLoginState() {
+    FB.getLoginStatus(function(response) {
+      statusChangeCallback(response);
+    });
+  }
+
+  window.fbAsyncInit = function() {
+    FB.init({
+      appId      : '1672953986597793',  // Ihre App-ID
+      cookie     : true,
+      xfbml      : true,
+      version    : 'v21.0'  // Aktuelle API-Version
+    });
+
+    FB.getLoginStatus(function(response) {
+      statusChangeCallback(response);
+    });
+  };
+</script>
+
+<div class="container">
+    <div class="card">
+        <h1>Instagram Manager Login</h1>
+        <div class="auth-section">
+            <!-- Facebook Login Button mit erforderlichen Berechtigungen -->
+            <fb:login-button 
+                scope="instagram_basic,instagram_content_publish,pages_read_engagement,pages_show_list"
+                onlogin="checkLoginState();"
+                size="large"
+                button-type="continue_with">
+            </fb:login-button>
+        </div>
+        <div id="status"></div>
+    </div>
+</div>
+
+<!-- Facebook SDK asynchron laden -->
+<script async defer crossorigin="anonymous" src="https://connect.facebook.net/de_DE/sdk.js"></script>
+</body>
+</html>

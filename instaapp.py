@@ -62,57 +62,6 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
-@app.route('/facebook-callback')
-def facebook_callback():
-    try:
-        code = request.args.get('code')
-        if not code:
-            flash('Fehlender Autorisierungscode', 'error')
-            return redirect(url_for('index'))
-
-        settings = get_instagram_settings()
-        
-        # Token von Facebook erhalten
-        token_url = 'https://graph.facebook.com/v18.0/oauth/access_token'
-        token_data = {
-            'client_id': settings['INSTAGRAM_CLIENT_ID'],
-            'client_secret': settings['INSTAGRAM_CLIENT_SECRET'],
-            'redirect_uri': request.base_url,
-            'code': code
-        }
-        
-        token_response = requests.post(token_url, data=token_data)
-        token_response.raise_for_status()
-        access_token = token_response.json().get('access_token')
-
-        # Instagram Business Account ID abrufen
-        accounts_url = 'https://graph.facebook.com/v18.0/me/accounts'
-        accounts_response = requests.get(accounts_url, params={'access_token': access_token})
-        accounts_response.raise_for_status()
-        
-        # Ersten Facebook Page ID nehmen
-        page_id = accounts_response.json()['data'][0]['id']
-        page_access_token = accounts_response.json()['data'][0]['access_token']
-
-        # Instagram Business Account ID abrufen
-        instagram_account_url = f'https://graph.facebook.com/v18.0/{page_id}?fields=instagram_business_account'
-        instagram_response = requests.get(instagram_account_url, params={'access_token': page_access_token})
-        instagram_response.raise_for_status()
-        
-        instagram_account_id = instagram_response.json()['instagram_business_account']['id']
-
-        # Token in Session speichern
-        session['access_token'] = access_token
-        session['instagram_account_id'] = instagram_account_id
-        
-        flash('Erfolgreich mit Instagram verbunden!', 'success')
-        return redirect(url_for('index'))
-
-    except Exception as e:
-        print(f"Error in callback: {str(e)}")
-        flash(f'Fehler bei der Authentifizierung: {str(e)}', 'error')
-        return redirect(url_for('index'))
-
 @app.route('/scheduler')
 def scheduler():
     return render_template('scheduler.html')
@@ -165,12 +114,202 @@ def schedule_post():
     flash('Ungültiger Dateityp', 'error')
     return redirect(url_for('scheduler'))
 
-@app.route('/instagram-login')
-def instagram_login():
+@app.route('/auth/instagram')
+def instagram_auth():
     settings = get_instagram_settings()
-    scopes = 'instagram_basic,instagram_content_publish'
-    auth_url = f'https://api.instagram.com/oauth/authorize?client_id={settings["INSTAGRAM_CLIENT_ID"]}&redirect_uri={settings["INSTAGRAM_REDIRECT_URI"]}&scope={scopes}&response_type=code'
-    return redirect(auth_url)
+    
+    # Basic Display API Berechtigungen
+    scopes = 'basic'  # Grundlegende Berechtigung für Basic Display API
+    
+    # Instagram OAuth URL für Basic Display API
+    auth_url = 'https://api.instagram.com/oauth/authorize'
+    params = {
+        'client_id': settings['INSTAGRAM_CLIENT_ID'],
+        'redirect_uri': settings['INSTAGRAM_REDIRECT_URI'],
+        'scope': scopes,
+        'response_type': 'code',
+        'state': 'instagram_auth'  # Sicherheitstoken
+    }
+    
+    # Erstelle die vollständige Auth URL
+    full_auth_url = f"{auth_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+    print(f"Auth URL: {full_auth_url}")  # Debug-Ausgabe
+    return redirect(full_auth_url)
+
+@app.route('/auth/instagram/callback')
+def instagram_callback():
+    try:
+        code = request.args.get('code')
+        if not code:
+            flash('Fehlender Autorisierungscode', 'error')
+            return redirect(url_for('index'))
+
+        settings = get_instagram_settings()
+        print(f"Received code: {code}")  # Debug-Ausgabe
+        
+        # Token von Instagram Basic Display API erhalten
+        token_url = 'https://api.instagram.com/oauth/access_token'
+        token_data = {
+            'client_id': settings['INSTAGRAM_CLIENT_ID'],
+            'client_secret': settings['INSTAGRAM_CLIENT_SECRET'],
+            'grant_type': 'authorization_code',
+            'redirect_uri': settings['INSTAGRAM_REDIRECT_URI'],
+            'code': code
+        }
+        
+        print(f"Token request data: {token_data}")  # Debug-Ausgabe
+        token_response = requests.post(token_url, data=token_data)
+        print(f"Token response: {token_response.text}")  # Debug-Ausgabe
+        token_response.raise_for_status()
+        
+        # Access Token und User ID extrahieren
+        token_data = token_response.json()
+        access_token = token_data.get('access_token')
+        user_id = token_data.get('user_id')
+        
+        if not access_token or not user_id:
+            raise Exception("Kein Access Token oder User ID erhalten")
+        
+        # Token in Session speichern
+        session['instagram_access_token'] = access_token
+        session['instagram_user_id'] = user_id
+        
+        flash('Erfolgreich mit Instagram verbunden!', 'success')
+        return redirect(url_for('dashboard'))
+
+    except Exception as e:
+        print(f"Error in callback: {str(e)}")
+        flash(f'Fehler bei der Authentifizierung: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/auth/facebook/callback')
+def facebook_callback():
+    try:
+        access_token = request.args.get('access_token')
+        if not access_token:
+            flash('Fehlender Access Token', 'error')
+            return redirect(url_for('index'))
+
+        # Facebook Graph API Endpunkte
+        accounts_url = 'https://graph.facebook.com/v18.0/me/accounts'
+        accounts_response = requests.get(accounts_url, params={'access_token': access_token})
+        accounts_response.raise_for_status()
+        
+        accounts_data = accounts_response.json().get('data', [])
+        if not accounts_data:
+            flash('Keine Facebook Seiten gefunden. Bitte erstellen Sie zuerst eine Facebook Seite.', 'error')
+            return redirect(url_for('index'))
+
+        # Erste Facebook Page verwenden
+        page = accounts_data[0]
+        page_id = page['id']
+        page_access_token = page['access_token']
+
+        # Instagram Business Account ID abrufen
+        instagram_account_url = f'https://graph.facebook.com/v18.0/{page_id}'
+        params = {
+            'fields': 'instagram_business_account',
+            'access_token': page_access_token
+        }
+        
+        instagram_response = requests.get(instagram_account_url, params=params)
+        instagram_response.raise_for_status()
+        
+        instagram_data = instagram_response.json()
+        if 'instagram_business_account' not in instagram_data:
+            flash('Kein Instagram Business Account gefunden. Bitte verbinden Sie zuerst einen Instagram Business Account mit Ihrer Facebook Seite.', 'error')
+            return redirect(url_for('index'))
+
+        instagram_account_id = instagram_data['instagram_business_account']['id']
+
+        # Token in Session speichern
+        session['access_token'] = access_token
+        session['page_access_token'] = page_access_token
+        session['instagram_account_id'] = instagram_account_id
+        
+        # Hauptprogramm starten
+        success = start_main_program(page_access_token, instagram_account_id)
+        
+        if success:
+            flash('Programm erfolgreich gestartet!', 'success')
+        else:
+            flash('Programm konnte nicht gestartet werden', 'error')
+            
+        return redirect(url_for('dashboard'))
+
+    except requests.exceptions.RequestException as e:
+        print(f"API Error: {str(e)}")
+        flash('Fehler bei der API-Anfrage. Bitte stellen Sie sicher, dass Sie die erforderlichen Berechtigungen haben.', 'error')
+        return redirect(url_for('index'))
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        flash('Ein unerwarteter Fehler ist aufgetreten', 'error')
+        return redirect(url_for('index'))
+
+def start_main_program(access_token, instagram_account_id):
+    try:
+        print("Starte Hauptprogramm...")
+        print(f"Instagram Account ID: {instagram_account_id}")
+        
+        # Hier können Sie Ihre Hauptprogramm-Logik implementieren
+        # Zum Beispiel: Fotos hochladen, Statistiken abrufen, etc.
+        
+        # Beispiel: Medien abrufen
+        media_url = f"https://graph.facebook.com/v18.0/{instagram_account_id}/media"
+        params = {
+            'access_token': access_token,
+            'fields': 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp'
+        }
+        
+        response = requests.get(media_url, params=params)
+        media_data = response.json()
+        
+        print("Medien erfolgreich abgerufen!")
+        print(f"Anzahl der Medien: {len(media_data.get('data', []))}")
+        
+        # Hier können Sie weitere Aktionen ausführen
+        
+        return True
+    except Exception as e:
+        print(f"Fehler beim Ausführen des Hauptprogramms: {str(e)}")
+        return False
+
+@app.route('/dashboard')
+def dashboard():
+    if 'page_access_token' not in session or 'instagram_account_id' not in session:
+        flash('Bitte loggen Sie sich zuerst ein', 'error')
+        return redirect(url_for('index'))
+    
+    try:
+        # Instagram Business Account Informationen abrufen
+        account_url = f"https://graph.facebook.com/v18.0/{session['instagram_account_id']}"
+        params = {
+            'fields': 'username,profile_picture_url,media_count,media{caption,media_url,thumbnail_url,permalink,media_type,timestamp}',
+            'access_token': session['page_access_token']
+        }
+        
+        response = requests.get(account_url, params=params)
+        response.raise_for_status()
+        account_info = response.json()
+        
+        # Media-Daten extrahieren
+        media = account_info.get('media', {}).get('data', [])
+        
+        return render_template('dashboard.html', 
+                             user_info={
+                                 'username': account_info.get('username'),
+                                 'profile_picture_url': account_info.get('profile_picture_url'),
+                                 'media_count': account_info.get('media_count')
+                             },
+                             media=media)
+        
+    except Exception as e:
+        flash(f'Fehler beim Laden der Account-Informationen: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/login')
+def facebook_login():
+    return render_template('facebook_login.html')
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Instagram Dashboard</h1>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="dashboard-content">
+            <div class="profile-card">
+                {% if user_info.profile_picture_url %}
+                    <img src="{{ user_info.profile_picture_url }}" alt="Profilbild" class="profile-picture">
+                {% endif %}
+                <h2>@{{ user_info.username }}</h2>
+                <div class="stats">
+                    <div class="stat-item">
+                        <span class="stat-value">{{ user_info.media_count }}</span>
+                        <span class="stat-label">Beiträge</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="media-grid">
+                {% for item in media %}
+                    <div class="media-item">
+                        {% if item.media_type == 'IMAGE' or item.media_type == 'CAROUSEL_ALBUM' %}
+                            <img src="{{ item.media_url }}" alt="{{ item.caption or 'Instagram Bild' }}">
+                        {% elif item.media_type == 'VIDEO' %}
+                            {% if item.thumbnail_url %}
+                                <img src="{{ item.thumbnail_url }}" alt="Video Vorschau">
+                            {% endif %}
+                            <a href="{{ item.media_url }}" target="_blank" class="btn">Video ansehen</a>
+                        {% endif %}
+                        {% if item.caption %}
+                            <p class="media-caption">{{ item.caption }}</p>
+                        {% endif %}
+                        <a href="{{ item.permalink }}" target="_blank" class="btn btn-secondary">Auf Instagram ansehen</a>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
