@@ -1,5 +1,5 @@
 {
     "INSTAGRAM_CLIENT_ID": "1558999001389004",
     "INSTAGRAM_CLIENT_SECRET": "4cce68716357a50f987f1ff535fd15e0",
-    "INSTAGRAM_REDIRECT_URI": "https://sweet-duckanoo-6df0e5.netlify.app/auth/instagram/callback"
+    "INSTAGRAM_REDIRECT_URI": "https://instaapp-crnu.onrender.com/auth/instagram/callback"
 }
