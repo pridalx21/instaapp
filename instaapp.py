@@ -182,54 +182,55 @@ def instagram_callback():
         flash(f'Fehler bei der Authentifizierung: {str(e)}', 'error')
         return redirect(url_for('index'))
 
+def generate_appsecret_proof(access_token):
+    import hmac
+    import hashlib
+    import time
+    
+    app_secret = os.getenv('FACEBOOK_APP_SECRET')
+    timestamp = int(time.time())
+    hmac_object = hmac.new(
+        app_secret.encode('utf-8'),
+        msg=f'{access_token}|{timestamp}'.encode('utf-8'),
+        digestmod=hashlib.sha256
+    )
+    return hmac_object.hexdigest(), timestamp
+
 @app.route('/auth/facebook/callback')
 def facebook_callback():
-    try:
-        access_token = request.args.get('access_token')
-        if not access_token:
-            flash('Kein Access Token erhalten', 'error')
-            return redirect(url_for('index'))
-
-        # Token in Session speichern
-        session['access_token'] = access_token
-
-        # Instagram Business Account ID abrufen
-        accounts_url = 'https://graph.facebook.com/v18.0/me/accounts'
-        accounts_response = requests.get(accounts_url, params={'access_token': access_token})
-        accounts_response.raise_for_status()
-        
-        accounts_data = accounts_response.json().get('data', [])
-        if not accounts_data:
-            flash('Keine Facebook Seiten gefunden. Bitte erstellen Sie zuerst eine Facebook Seite.', 'error')
-            return redirect(url_for('index'))
-
-        # Erste Facebook Seite verwenden
-        page = accounts_data[0]
-        page_access_token = page['access_token']
-        page_id = page['id']
-
-        # Instagram Business Account ID abrufen
-        instagram_account_url = f'https://graph.facebook.com/v18.0/{page_id}?fields=instagram_business_account&access_token={page_access_token}'
-        instagram_response = requests.get(instagram_account_url)
-        instagram_response.raise_for_status()
-        
-        instagram_data = instagram_response.json()
-        if 'instagram_business_account' not in instagram_data:
-            flash('Kein Instagram Business Account gefunden. Bitte verbinden Sie zuerst Ihre Facebook Seite mit einem Instagram Business Account.', 'error')
-            return redirect(url_for('index'))
-
-        instagram_account_id = instagram_data['instagram_business_account']['id']
-        
-        # Tokens und IDs in Session speichern
-        session['page_access_token'] = page_access_token
-        session['instagram_account_id'] = instagram_account_id
-        
-        flash('Erfolgreich mit Instagram verbunden!', 'success')
-        return redirect(url_for('dashboard'))
-
-    except Exception as e:
-        flash(f'Fehler bei der Authentifizierung: {str(e)}', 'error')
+    access_token = request.args.get('access_token')
+    if not access_token:
+        flash('Fehler bei der Authentifizierung', 'error')
         return redirect(url_for('index'))
+    
+    # Generate appsecret_proof
+    appsecret_proof, timestamp = generate_appsecret_proof(access_token)
+    
+    # Get user info with appsecret_proof
+    params = {
+        'access_token': access_token,
+        'appsecret_proof': appsecret_proof,
+        'appsecret_time': timestamp,
+        'fields': 'id,name,accounts{instagram_business_account}'
+    }
+    
+    response = requests.get('https://graph.facebook.com/v18.0/me', params=params)
+    if response.status_code != 200:
+        flash('Fehler beim Abrufen der Benutzerinformationen', 'error')
+        return redirect(url_for('index'))
+
+    user_data = response.json()
+    session['user_id'] = user_data.get('id')
+    session['access_token'] = access_token
+    
+    # Get Instagram business account
+    accounts_data = user_data.get('accounts', {}).get('data', [])
+    for account in accounts_data:
+        if account.get('instagram_business_account'):
+            session['instagram_business_account_id'] = account['instagram_business_account']['id']
+            break
+    
+    return render_template('facebook_callback.html')
 
 @app.route('/dashboard')
 def dashboard():
