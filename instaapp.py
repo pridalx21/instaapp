@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from datetime import datetime
 import json
 from werkzeug.utils import secure_filename
+from functools import wraps
 
 # Load environment variables
 load_dotenv()
@@ -16,7 +17,6 @@ def load_settings():
     try:
         with open(SETTINGS_FILE, 'r') as f:
             settings = json.load(f)
-            print(f"Loaded settings from file: {settings}")
             return settings
     except FileNotFoundError:
         print("No settings file found, using defaults")
@@ -187,10 +187,13 @@ def facebook_callback():
     try:
         access_token = request.args.get('access_token')
         if not access_token:
-            flash('Fehlender Access Token', 'error')
+            flash('Kein Access Token erhalten', 'error')
             return redirect(url_for('index'))
 
-        # Facebook Graph API Endpunkte
+        # Token in Session speichern
+        session['access_token'] = access_token
+
+        # Instagram Business Account ID abrufen
         accounts_url = 'https://graph.facebook.com/v18.0/me/accounts'
         accounts_response = requests.get(accounts_url, params={'access_token': access_token})
         accounts_response.raise_for_status()
@@ -200,84 +203,38 @@ def facebook_callback():
             flash('Keine Facebook Seiten gefunden. Bitte erstellen Sie zuerst eine Facebook Seite.', 'error')
             return redirect(url_for('index'))
 
-        # Erste Facebook Page verwenden
+        # Erste Facebook Seite verwenden
         page = accounts_data[0]
-        page_id = page['id']
         page_access_token = page['access_token']
+        page_id = page['id']
 
         # Instagram Business Account ID abrufen
-        instagram_account_url = f'https://graph.facebook.com/v18.0/{page_id}'
-        params = {
-            'fields': 'instagram_business_account',
-            'access_token': page_access_token
-        }
-        
-        instagram_response = requests.get(instagram_account_url, params=params)
+        instagram_account_url = f'https://graph.facebook.com/v18.0/{page_id}?fields=instagram_business_account&access_token={page_access_token}'
+        instagram_response = requests.get(instagram_account_url)
         instagram_response.raise_for_status()
         
         instagram_data = instagram_response.json()
         if 'instagram_business_account' not in instagram_data:
-            flash('Kein Instagram Business Account gefunden. Bitte verbinden Sie zuerst einen Instagram Business Account mit Ihrer Facebook Seite.', 'error')
+            flash('Kein Instagram Business Account gefunden. Bitte verbinden Sie zuerst Ihre Facebook Seite mit einem Instagram Business Account.', 'error')
             return redirect(url_for('index'))
 
         instagram_account_id = instagram_data['instagram_business_account']['id']
-
-        # Token in Session speichern
-        session['access_token'] = access_token
+        
+        # Tokens und IDs in Session speichern
         session['page_access_token'] = page_access_token
         session['instagram_account_id'] = instagram_account_id
         
-        # Hauptprogramm starten
-        success = start_main_program(page_access_token, instagram_account_id)
-        
-        if success:
-            flash('Programm erfolgreich gestartet!', 'success')
-        else:
-            flash('Programm konnte nicht gestartet werden', 'error')
-            
+        flash('Erfolgreich mit Instagram verbunden!', 'success')
         return redirect(url_for('dashboard'))
 
-    except requests.exceptions.RequestException as e:
-        print(f"API Error: {str(e)}")
-        flash('Fehler bei der API-Anfrage. Bitte stellen Sie sicher, dass Sie die erforderlichen Berechtigungen haben.', 'error')
-        return redirect(url_for('index'))
     except Exception as e:
-        print(f"Error: {str(e)}")
-        flash('Ein unerwarteter Fehler ist aufgetreten', 'error')
+        flash(f'Fehler bei der Authentifizierung: {str(e)}', 'error')
         return redirect(url_for('index'))
-
-def start_main_program(access_token, instagram_account_id):
-    try:
-        print("Starte Hauptprogramm...")
-        print(f"Instagram Account ID: {instagram_account_id}")
-        
-        # Hier können Sie Ihre Hauptprogramm-Logik implementieren
-        # Zum Beispiel: Fotos hochladen, Statistiken abrufen, etc.
-        
-        # Beispiel: Medien abrufen
-        media_url = f"https://graph.facebook.com/v18.0/{instagram_account_id}/media"
-        params = {
-            'access_token': access_token,
-            'fields': 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp'
-        }
-        
-        response = requests.get(media_url, params=params)
-        media_data = response.json()
-        
-        print("Medien erfolgreich abgerufen!")
-        print(f"Anzahl der Medien: {len(media_data.get('data', []))}")
-        
-        # Hier können Sie weitere Aktionen ausführen
-        
-        return True
-    except Exception as e:
-        print(f"Fehler beim Ausführen des Hauptprogramms: {str(e)}")
-        return False
 
 @app.route('/dashboard')
 def dashboard():
     if 'page_access_token' not in session or 'instagram_account_id' not in session:
-        flash('Bitte loggen Sie sich zuerst ein', 'error')
+        flash('Bitte melden Sie sich zuerst an', 'error')
         return redirect(url_for('index'))
     
     try:

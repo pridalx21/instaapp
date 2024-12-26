@@ -3,62 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beiträge Planen</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <title>Post planen - Instagram Manager</title>
     <style>
-        * {
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #fafafa;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
         }
 
-        body {
-            background: linear-gradient(135deg, #f6f9fc 0%, #eef2f7 100%);
-            color: #1a1f36;
-            min-height: 100vh;
-            padding: 40px 20px;
+        .navbar {
+            background-color: white;
+            border-bottom: 1px solid #dbdbdb;
+            padding: 15px 0;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
         }
 
-        .container {
-            max-width: 800px;
+        .nav-container {
+            max-width: 975px;
             margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            animation: fadeIn 0.8s ease-out;
+        .nav-brand {
+            font-size: 20px;
+            font-weight: 600;
+            color: #262626;
+            text-decoration: none;
         }
 
-        .header h1 {
-            font-size: 2.5em;
-            background: linear-gradient(45deg, #405DE6, #5851DB, #833AB4, #C13584, #E1306C, #FD1D1D);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
+        .nav-menu {
+            display: flex;
+            gap: 20px;
         }
 
-        .header p {
-            color: #4f566b;
-            font-size: 1.1em;
+        .nav-link {
+            color: #262626;
+            text-decoration: none;
+            font-weight: 500;
         }
 
-        .post-card {
+        .main-content {
+            margin-top: 80px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 20px;
+        }
+
+        .scheduler-form {
             background: white;
+            border-radius: 8px;
             padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            margin-bottom: 20px;
-            transition: transform 0.3s ease;
-            position: relative;
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-
-        .post-card:hover {
-            transform: translateY(-5px);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .form-group {
@@ -68,323 +71,111 @@
         .form-group label {
             display: block;
             margin-bottom: 8px;
+            color: #262626;
             font-weight: 500;
-            color: #1a1f36;
         }
 
-        textarea, input[type="datetime-local"] {
+        .form-group input[type="text"],
+        .form-group input[type="datetime-local"],
+        .form-group textarea {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #e3e8ef;
-            border-radius: 8px;
-            font-size: 0.95em;
-            transition: all 0.3s ease;
+            padding: 10px;
+            border: 1px solid #dbdbdb;
+            border-radius: 4px;
+            font-size: 14px;
         }
 
-        textarea {
+        .form-group textarea {
             height: 100px;
             resize: vertical;
         }
 
-        textarea:focus, input:focus {
-            outline: none;
-            border-color: #6772e5;
-            box-shadow: 0 0 0 3px rgba(103,114,229,0.1);
+        .image-preview {
+            margin-top: 10px;
+            max-width: 100%;
+            border-radius: 4px;
+            display: none;
         }
 
-        .file-input-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-            width: 100%;
-        }
-
-        .file-input-wrapper input[type="file"] {
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
+        .submit-button {
+            background: #0095f6;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
             cursor: pointer;
+            font-weight: 600;
             width: 100%;
-            height: 100%;
+            font-size: 14px;
         }
 
-        .file-input-button {
-            display: block;
+        .submit-button:hover {
+            background: #0081d6;
+        }
+
+        .alert {
             padding: 12px;
-            background: #f8fafc;
-            border: 2px dashed #e3e8ef;
-            border-radius: 8px;
-            text-align: center;
-            color: #4f566b;
-            transition: all 0.3s ease;
-        }
-
-        .file-input-wrapper:hover .file-input-button {
-            border-color: #6772e5;
-            color: #6772e5;
-        }
-
-        .remove-post {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            border: none;
-            background: #fee2e2;
-            color: #dc2626;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: all 0.3s ease;
-        }
-
-        .remove-post:hover {
-            background: #dc2626;
-            color: white;
-            transform: rotate(90deg);
-        }
-
-        .add-post-btn {
-            width: 100%;
-            padding: 15px;
-            background: #dcf7ec;
-            color: #0c622e;
-            border: 2px dashed #0c622e;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: all 0.3s ease;
-            margin: 20px 0;
-        }
-
-        .add-post-btn:hover {
-            background: #0c622e;
-            color: white;
-        }
-
-        .schedule-all-btn {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(45deg, #405DE6, #5851DB, #833AB4);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1.1em;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            border-radius: 4px;
             margin-bottom: 20px;
         }
 
-        .schedule-all-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 7px 14px rgba(50,50,93,0.1);
+        .alert-error {
+            background-color: #ffebee;
+            color: #c62828;
         }
 
-        .preview-section {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #e3e8ef;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .preview-image {
-            width: 80px;
-            height: 80px;
-            object-fit: cover;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .preview-details {
-            flex: 1;
-        }
-
-        .preview-caption {
-            color: #4f566b;
-            font-size: 0.9em;
-            margin-bottom: 5px;
-        }
-
-        .preview-time {
-            color: #6772e5;
-            font-size: 0.85em;
-            font-weight: 500;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .back-btn {
-            display: inline-block;
-            padding: 12px 24px;
-            color: #4f566b;
-            text-decoration: none;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-
-        .back-btn:hover {
-            background: rgba(0,0,0,0.05);
-        }
-
-        .flash {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .flash.error {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .flash.success {
-            background: #dcf7ec;
-            color: #0c622e;
+        .alert-success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Socia lMedia Beiträge Planen</h1>
-            <p>Plane mehrere Beiträge für die kommenden Tage</p>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('dashboard') }}" class="nav-brand">Instagram Manager</a>
+            <div class="nav-menu">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('index') }}" class="nav-link">Logout</a>
+            </div>
         </div>
+    </nav>
 
+    <main class="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
 
-        <div class="card">
-            <form id="schedulerForm" action="{{ url_for('schedule_posts') }}" method="POST" enctype="multipart/form-data">
-                <div class="posts-container" id="postsContainer">
-                    <!-- Post templates will be added here -->
-                </div>
-                
-                <button type="button" class="add-post-btn" id="addPostBtn">
-                    + Neuen Beitrag hinzufügen
-                </button>
-
-                <button type="submit" class="schedule-all-btn">
-                    Alle Beiträge planen
-                </button>
-            </form>
-
-            <div class="buttons-container">
-                <a href="{{ url_for('index') }}" class="back-btn">Zurück zur Startseite</a>
-            </div>
-        </div>
-    </div>
-
-    <template id="postTemplate">
-        <div class="post-card">
-            <button type="button" class="remove-post" onclick="removePost(this)">×</button>
-            
+        <form class="scheduler-form" method="POST" action="{{ url_for('schedule_post') }}" enctype="multipart/form-data">
             <div class="form-group">
-                <label>📝 Bildunterschrift</label>
-                <textarea name="captions[]" required placeholder="Erzähle deine Geschichte..."></textarea>
+                <label for="image">Bild auswählen</label>
+                <input type="file" id="image" name="image" accept="image/*" required onchange="previewImage(this)">
+                <img id="preview" class="image-preview">
             </div>
 
             <div class="form-group">
-                <label>🖼️ Bild</label>
-                <div class="file-input-wrapper">
-                    <div class="file-input-button">Bild auswählen oder hierher ziehen</div>
-                    <input type="file" name="images[]" accept="image/*" required onchange="previewImage(this)">
-                </div>
+                <label for="caption">Bildunterschrift</label>
+                <textarea id="caption" name="caption" placeholder="Schreibe eine Bildunterschrift..." required></textarea>
             </div>
 
             <div class="form-group">
-                <label>🕒 Zeitplan</label>
-                <input type="datetime-local" name="schedules[]" required>
+                <label for="schedule">Veröffentlichungszeitpunkt</label>
+                <input type="datetime-local" id="schedule" name="schedule" required>
             </div>
 
-            <div class="preview-section">
-                <img class="preview-image" src="" alt="" style="display: none;">
-                <div class="preview-details">
-                    <div class="preview-caption"></div>
-                    <div class="preview-time"></div>
-                </div>
-            </div>
-        </div>
-    </template>
+            <button type="submit" class="submit-button">Post planen</button>
+        </form>
+    </main>
 
-    <script src="/static/js/script.js"></script>
     <script>
-        const postsContainer = document.getElementById('postsContainer');
-        const postTemplate = document.getElementById('postTemplate');
-        const addPostBtn = document.getElementById('addPostBtn');
-
-        // Add first post on page load
-        window.addEventListener('load', () => addNewPost());
-
-        addPostBtn.addEventListener('click', addNewPost);
-
-        function addNewPost() {
-            const newPost = document.importNode(postTemplate.content, true);
-            const dateInput = newPost.querySelector('input[type="datetime-local"]');
-            
-            // Set min datetime to current time
-            const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            dateInput.min = now.toISOString().slice(0,16);
-            
-            postsContainer.appendChild(newPost);
-            updatePreviewListeners(postsContainer.lastElementChild);
-        }
-
-        function removePost(btn) {
-            const postCard = btn.closest('.post-card');
-            if (document.querySelectorAll('.post-card').length > 1) {
-                postCard.remove();
-            }
-        }
-
-        function updatePreviewListeners(postCard) {
-            const caption = postCard.querySelector('textarea');
-            const dateInput = postCard.querySelector('input[type="datetime-local"]');
-            const previewCaption = postCard.querySelector('.preview-caption');
-            const previewTime = postCard.querySelector('.preview-time');
-
-            caption.addEventListener('input', () => {
-                previewCaption.textContent = caption.value.substring(0, 100) + 
-                    (caption.value.length > 100 ? '...' : '');
-            });
-
-            dateInput.addEventListener('change', () => {
-                const date = new Date(dateInput.value);
-                previewTime.textContent = date.toLocaleString('de-DE', {
-                    dateStyle: 'medium',
-                /**
-                 * timeStyle:
-                 *   - 'long': 20. Januar 2023, 14:30:00
-                 *   - 'short': 20.01.2023, 14:30
-                 *   - 'narrow': 20.1.2023, 14:30
-                 *   - 'medium': 20. Januar 2023, 14:30 Uhr
-                 */
-                    timeStyle: 'short'
-                });
-            });
-        }
-
         function previewImage(input) {
-            const postCard = input.closest('.post-card');
-            const preview = postCard.querySelector('.preview-image');
-            
+            const preview = document.getElementById('preview');
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -394,6 +185,12 @@
                 reader.readAsDataURL(input.files[0]);
             }
         }
+
+        // Setze Mindestdatum für den Scheduler auf jetzt
+        const scheduleInput = document.getElementById('schedule');
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        scheduleInput.min = now.toISOString().slice(0, 16);
     </script>
 </body>
 </html>
