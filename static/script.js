@@ -93,7 +93,7 @@ FB.login(function(response) {
         }
     }
 }, {
-    scope: 'instagram_basic,pages_show_list',
+    scope: 'instagram_basic',
     auth_type: 'rerequest',
     return_scopes: true
 });
