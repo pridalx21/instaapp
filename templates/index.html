@@ -58,18 +58,25 @@
             color: #2e7d32;
         }
 
-        .fb-login-button {
+        .login-button {
+            background-color: #0095f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
             margin-top: 20px;
+        }
+
+        .login-button:hover {
+            background-color: #0081d6;
         }
     </style>
 </head>
 <body>
     <div id="fb-root"></div>
-    <script async defer crossorigin="anonymous" 
-            src="https://connect.facebook.net/de_DE/sdk.js#xfbml=1&version=v18.0&appId=1558999001389004" 
-            nonce="random_nonce">
-    </script>
-
     <script>
         window.fbAsyncInit = function() {
             FB.init({
@@ -78,13 +85,32 @@
                 xfbml: true,
                 version: 'v18.0'
             });
+        };
 
+        // Load the SDK asynchronously
+        (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0];
+            if (d.getElementById(id)) return;
+            js = d.createElement(s); js.id = id;
+            js.src = "https://connect.facebook.net/de_DE/sdk.js";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
+
+        function checkLoginState() {
             FB.getLoginStatus(function(response) {
                 if (response.status === 'connected') {
                     window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
                 }
             });
-        };
+        }
+
+        function loginWithFacebook() {
+            FB.login(function(response) {
+                if (response.status === 'connected') {
+                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
+                }
+            }, {scope: 'instagram_basic,instagram_content_publish,pages_show_list'});
+        }
     </script>
 
     <div class="container">
@@ -103,26 +129,9 @@
             {% endwith %}
         </div>
 
-        <div class="fb-login-button" 
-             data-width=""
-             data-size="large" 
-             data-button-type="continue_with" 
-             data-layout="rounded" 
-             data-auto-logout-link="false" 
-             data-use-continue-as="true"
-             data-scope="instagram_basic,instagram_content_publish,pages_read_engagement,pages_show_list"
-             data-onlogin="checkLoginState();">
-        </div>
+        <button onclick="loginWithFacebook()" class="login-button">
+            Mit Facebook fortfahren
+        </button>
     </div>
-
-    <script>
-        function checkLoginState() {
-            FB.getLoginStatus(function(response) {
-                if (response.status === 'connected') {
-                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
-                }
-            });
-        }
-    </script>
 </body>
 </html>
