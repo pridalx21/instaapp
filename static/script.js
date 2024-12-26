@@ -79,3 +79,21 @@ function removePost(btn) {
 function updatePreviewListeners(postCard) {
     // Your function implementation here
 }
+
+FB.login(function(response) {
+    if (response.status === 'connected') {
+        const returnedState = new URLSearchParams(window.location.search).get('state');
+        const savedState = sessionStorage.getItem('fb_state');
+        
+        if (returnedState && savedState && returnedState === savedState) {
+            window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken + '&state=' + state;
+        } else {
+            console.error('State parameter mismatch');
+            alert('Sicherheitsfehler: Ungültiger State-Parameter');
+        }
+    }
+}, {
+    scope: 'instagram_basic,pages_show_list',
+    auth_type: 'rerequest',
+    return_scopes: true
+});
