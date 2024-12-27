@@ -1,535 +1,396 @@
 {% extends "base.html" %}
 
-{% block styles %}
+{% block head %}
 <style>
     :root {
         --primary-color: #6c5ce7;
-        --secondary-color: #a8a5e6;
-        --gradient: linear-gradient(45deg, #6c5ce7, #a8a5e6);
+        --accent-color: #7a5af8;
         --border-color: #e0e0e0;
-        --text-color: #333;
-        --bg-color: #f8f9fa;
+        --gradient: linear-gradient(90deg, #6c5ce7, #7a5af8);
     }
 
-    body {
-        background: var(--bg-color);
-        color: var(--text-color);
+    .targeting-container {
+        max-width: 1200px;
+        margin: 80px auto 0;
+        padding: 40px 20px;
     }
 
-    .container {
-        max-width: 1400px;
-        margin: 40px auto;
-        padding: 0 20px;
-    }
-
-    .page-header {
+    .targeting-header {
         text-align: center;
-        margin-bottom: 40px;
-        padding: 40px 0;
-        background: white;
-        border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(108, 92, 231, 0.1);
+        margin-bottom: 50px;
     }
 
-    .page-header h1 {
-        font-size: 2.5rem;
-        margin-bottom: 15px;
+    .targeting-title {
+        font-size: 36px;
+        font-weight: bold;
         background: var(--gradient);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        display: inline-block;
+        margin-bottom: 15px;
     }
 
-    .page-header p {
-        font-size: 1.1rem;
-        color: var(--text-color);
-        opacity: 0.8;
-        max-width: 600px;
-        margin: 0 auto;
+    .targeting-subtitle {
+        color: #666;
+        font-size: 18px;
     }
 
-    .card {
+    .targeting-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 30px;
+        margin-bottom: 40px;
+    }
+
+    .targeting-card {
         background: white;
         border-radius: 15px;
-        border: none;
+        padding: 30px;
         box-shadow: 0 4px 20px rgba(108, 92, 231, 0.1);
         transition: all 0.3s ease;
-        height: 100%;
     }
 
-    .card:hover {
+    .targeting-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 8px 30px rgba(108, 92, 231, 0.2);
     }
 
-    .form-group {
-        margin-bottom: 25px;
+    .targeting-section {
+        margin-bottom: 30px;
     }
 
-    .form-label {
-        color: var(--text-color);
-        font-weight: 600;
-        margin-bottom: 10px;
-        display: block;
-    }
-
-    .form-control, .form-select {
-        border: 2px solid var(--border-color);
-        border-radius: 10px;
-        padding: 12px 15px;
-        transition: all 0.3s ease;
-        color: var(--text-color);
-        background-color: white;
-    }
-
-    .form-control:focus, .form-select:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-        outline: none;
-    }
-
-    .form-select[multiple] {
-        height: auto;
-        min-height: 200px;
-    }
-
-    .form-text {
-        color: var(--text-color);
-        opacity: 0.7;
-        font-size: 0.9rem;
-        margin-top: 5px;
-    }
-
-    .btn {
-        padding: 12px 25px;
-        border-radius: 25px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .btn-primary {
-        background: var(--gradient);
-        border: none;
-        color: white;
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(108, 92, 231, 0.4);
-    }
-
-    .btn-outline-primary {
+    .section-title {
+        font-size: 20px;
         color: var(--primary-color);
-        border: 2px solid var(--primary-color);
-        background: transparent;
+        margin-bottom: 15px;
     }
 
-    .btn-outline-primary:hover {
-        background: var(--gradient);
-        border-color: transparent;
-        color: white;
-    }
-
-    .preview-container {
-        position: sticky;
-        top: 20px;
-    }
-
-    #postPreview {
-        opacity: 0;
-        transform: translateY(20px);
-        transition: all 0.5s ease;
-    }
-
-    #postPreview.show {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    .preview-image {
-        position: relative;
-        min-height: 300px;
-        background: var(--bg-color);
+    .hashtag-container {
         display: flex;
-        justify-content: center;
-        align-items: center;
-        border-radius: 15px;
-        overflow: hidden;
+        flex-wrap: wrap;
+        gap: 10px;
         margin-bottom: 20px;
     }
 
-    #generatedImage {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: opacity 0.3s ease;
-    }
-
-    #generatedImage.loading {
-        opacity: 0.5;
-    }
-
     .hashtag {
-        display: inline-block;
-        padding: 5px 12px;
-        background: var(--bg-color);
+        background: #f8f9fa;
+        padding: 8px 15px;
         border-radius: 20px;
-        margin: 0 5px 8px 0;
-        color: var(--primary-color);
-        font-size: 0.9rem;
+        font-size: 14px;
+        color: #666;
         transition: all 0.3s ease;
     }
 
     .hashtag:hover {
-        background: var(--primary-color);
+        background: var(--gradient);
         color: white;
         transform: translateY(-2px);
     }
 
-    .alert {
+    .time-slot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        background: #f8f9fa;
         border-radius: 10px;
-        padding: 15px 20px;
-        margin: 15px 0;
-        border: none;
-    }
-
-    .alert-info {
-        background: var(--bg-color);
-        border-left: 4px solid var(--primary-color);
-        color: var(--text-color);
-    }
-
-    .alert-danger {
-        background: #ffe5e5;
-        border-left: 4px solid #ff4444;
-        color: #cc0000;
-    }
-
-    .generate-status {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        padding: 15px 25px;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        border-radius: 30px;
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        animation: slideIn 0.3s ease;
-    }
-
-    @keyframes slideIn {
-        from {
-            transform: translateY(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateY(0);
-            opacity: 1;
-        }
-    }
-
-    .loader {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 200px;
-    }
-
-    .content-placeholder {
-        height: 20px;
-        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-        background-size: 200% 100%;
-        animation: loading 1.5s infinite;
-        border-radius: 4px;
         margin-bottom: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .time-slot:hover {
+        background: var(--gradient);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .time {
+        font-weight: 600;
+    }
+
+    .engagement {
+        font-size: 14px;
+        color: #666;
+    }
+
+    .time-slot:hover .engagement {
+        color: white;
+    }
+
+    .audience-chart {
         width: 100%;
+        height: 300px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        font-size: 18px;
+        margin-top: 20px;
     }
 
-    .content-placeholder.short {
-        width: 60%;
+    .form-group {
+        margin-bottom: 20px;
     }
 
-    @keyframes loading {
-        0% {
-            background-position: 200% 0;
-        }
-        100% {
-            background-position: -200% 0;
-        }
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 16px;
     }
 
-    @media (max-width: 768px) {
-        .container {
-            padding: 20px;
-        }
-        
-        .page-header {
-            padding: 30px 20px;
-            margin-bottom: 30px;
-        }
-        
-        .page-header h1 {
-            font-size: 2rem;
-        }
-        
-        .preview-container {
-            position: static;
-            margin-top: 30px;
-        }
-        
-        .btn {
-            width: 100%;
-            margin-bottom: 10px;
-        }
+    .interests-container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .interest-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+    }
+
+    .generate-button, .schedule-button {
+        width: 100%;
+        padding: 15px;
+        background: var(--gradient);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .generate-button:hover, .schedule-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(108, 92, 231, 0.2);
+    }
+
+    .button-icon {
+        font-size: 20px;
+    }
+
+    .preview-container {
+        margin-top: 20px;
+    }
+
+    .image-preview {
+        width: 100%;
+        height: 300px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+    }
+
+    .caption-preview, .hashtags-preview {
+        margin-bottom: 20px;
+    }
+
+    .caption-preview h4, .hashtags-preview h4 {
+        color: var(--primary-color);
+        margin-bottom: 10px;
+    }
+
+    .generated-caption {
+        font-size: 16px;
+        line-height: 1.6;
+        color: #333;
+    }
+
+    .generated-hashtags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .schedule-button {
+        margin-top: 20px;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="page-header">
-        <h1>Content Generator</h1>
-        <p>Create engaging Instagram content tailored to your target audience using AI-powered generation</p>
+
+
+<div class="targeting-container">
+    <div class="targeting-header">
+        <h1 class="targeting-title">Targeting & KI Content</h1>
+        <p class="targeting-subtitle">Definiere deine Zielgruppe und erstelle automatisch passenden Content</p>
     </div>
 
-    <div class="row g-4">
-        <div class="col-lg-5">
-            <div class="card p-4">
-                <form id="contentForm">
-                    <div class="form-group">
-                        <label class="form-label" for="contentType">Content Type</label>
-                        <select class="form-select" id="contentType" name="contentType" required>
-                            <option value="">Select a content type</option>
-                            <option value="Lifestyle">Lifestyle</option>
-                            <option value="Fashion">Fashion</option>
-                            <option value="Food">Food</option>
-                            <option value="Travel">Travel</option>
-                            <option value="Fitness">Fitness</option>
-                            <option value="Beauty">Beauty</option>
-                        </select>
-                    </div>
+    <div class="targeting-grid">
+        <div class="targeting-card">
+            <form id="target-group-form" class="target-group-form">
+                <h3 class="section-title">Zielgruppe definieren</h3>
+                
+                <div class="form-group">
+                    <label for="age-range">Altersgruppe</label>
+                    <select id="age-range" name="age-range" class="form-control" required>
+                        <option value="13-17">13-17 Jahre</option>
+                        <option value="18-24">18-24 Jahre</option>
+                        <option value="25-34">25-34 Jahre</option>
+                        <option value="35-44">35-44 Jahre</option>
+                        <option value="45+">45+ Jahre</option>
+                    </select>
+                </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="tone">Content Tone</label>
-                        <select class="form-select" id="tone" name="tone" required>
-                            <option value="">Select a tone</option>
-                            <option value="Professional">Professional</option>
-                            <option value="Casual">Casual</option>
-                            <option value="Friendly">Friendly</option>
-                            <option value="Humorous">Humorous</option>
-                            <option value="Inspirational">Inspirational</option>
-                        </select>
+                <div class="form-group">
+                    <label for="interests">Interessen (max. 3)</label>
+                    <div class="interests-container">
+                        <label class="interest-checkbox">
+                            <input type="checkbox" name="interests" value="fashion"> Mode & Beauty
+                        </label>
+                        <label class="interest-checkbox">
+                            <input type="checkbox" name="interests" value="fitness"> Fitness & Gesundheit
+                        </label>
+                        <label class="interest-checkbox">
+                            <input type="checkbox" name="interests" value="travel"> Reisen & Abenteuer
+                        </label>
+                        <label class="interest-checkbox">
+                            <input type="checkbox" name="interests" value="food"> Essen & Kochen
+                        </label>
+                        <label class="interest-checkbox">
+                            <input type="checkbox" name="interests" value="tech"> Technologie
+                        </label>
+                        <label class="interest-checkbox">
+                            <input type="checkbox" name="interests" value="business"> Business
+                        </label>
                     </div>
+                </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="interests">Target Interests</label>
-                        <select class="form-select" id="interests" name="interests" multiple required>
-                            <option value="Photography">Photography</option>
-                            <option value="Art">Art</option>
-                            <option value="Music">Music</option>
-                            <option value="Sports">Sports</option>
-                            <option value="Technology">Technology</option>
-                            <option value="Gaming">Gaming</option>
-                            <option value="Books">Books</option>
-                            <option value="Movies">Movies</option>
-                        </select>
-                        <small class="form-text">Hold Ctrl/Cmd to select multiple interests</small>
-                    </div>
+                <div class="form-group">
+                    <label for="content-type">Content-Typ</label>
+                    <select id="content-type" name="content-type" class="form-control" required>
+                        <option value="educational">Educational Content</option>
+                        <option value="entertaining">Unterhaltung</option>
+                        <option value="inspiring">Inspiration</option>
+                        <option value="promotional">Werbung</option>
+                    </select>
+                </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="ageRange">Target Age Range</label>
-                        <select class="form-select" id="ageRange" name="ageRange" required>
-                            <option value="">Select an age range</option>
-                            <option value="13-17">13-17</option>
-                            <option value="18-24">18-24</option>
-                            <option value="25-34">25-34</option>
-                            <option value="35-44">35-44</option>
-                            <option value="45+">45+</option>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label for="tone">Tonalität</label>
+                    <select id="tone" name="tone" class="form-control" required>
+                        <option value="professional">Professionell</option>
+                        <option value="casual">Locker & Casual</option>
+                        <option value="funny">Humorvoll</option>
+                        <option value="motivational">Motivierend</option>
+                    </select>
+                </div>
 
-                    <button type="submit" class="btn btn-primary w-100" id="generateBtn">
-                        Generate Content
-                    </button>
-                </form>
-            </div>
+                <button type="submit" class="generate-button">
+                    <span class="button-text">KI Content generieren</span>
+                    <span class="button-icon">✨</span>
+                </button>
+            </form>
         </div>
 
-        <div class="col-lg-7">
+        <div class="targeting-card" id="ai-preview">
+            <h3 class="section-title">KI-generierter Content</h3>
             <div class="preview-container">
-                <div id="postPreview" class="card p-4 d-none">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h3 class="mb-0">Post Preview</h3>
-                        <a href="/scheduled-posts" class="btn btn-outline-primary">View All Posts</a>
-                    </div>
-
-                    <div class="preview-image">
-                        <div id="imageLoader" class="loader d-none">
-                            <div class="spinner-grow text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                        <img id="generatedImage" class="img-fluid" alt="Generated image">
-                    </div>
-
-                    <div class="mb-4">
-                        <div id="contentLoader" class="loader d-none">
-                            <div class="content-placeholder"></div>
-                            <div class="content-placeholder"></div>
-                            <div class="content-placeholder short"></div>
-                        </div>
-                        <div id="contentContainer">
-                            <h5 class="mb-3">Caption</h5>
-                            <p id="generatedCaption" class="mb-3"></p>
-                            <div id="generatedHashtags" class="hashtags"></div>
-                        </div>
-                    </div>
-
-                    <div id="schedulingInfo" class="alert alert-info d-none">
-                        <i class="fas fa-clock"></i> 
-                        <span>Scheduled for: <span id="scheduledTime"></span></span>
-                    </div>
-
-                    <button id="approveBtn" class="btn btn-primary d-none">
-                        <i class="fas fa-check"></i> Approve Post
-                    </button>
+                <div class="image-preview">
+                    <div class="placeholder">Bild wird generiert...</div>
                 </div>
-
-                <div id="generateError" class="alert alert-danger d-none">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span id="errorMessage"></span>
+                <div class="caption-preview">
+                    <h4>Caption</h4>
+                    <p class="generated-caption"></p>
+                </div>
+                <div class="hashtags-preview">
+                    <h4>Hashtags</h4>
+                    <div class="generated-hashtags"></div>
                 </div>
             </div>
+            <button class="schedule-button" style="display: none;">
+                <span class="button-text">Post planen</span>
+                <span class="button-icon">📅</span>
+            </button>
         </div>
     </div>
 </div>
 
 <script>
-document.getElementById('contentForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const generateBtn = document.getElementById('generateBtn');
-    const postPreview = document.getElementById('postPreview');
-    const imageLoader = document.getElementById('imageLoader');
-    const contentLoader = document.getElementById('contentLoader');
-    const contentContainer = document.getElementById('contentContainer');
-    const generateError = document.getElementById('generateError');
-    
-    // Reset state
-    generateError.classList.add('d-none');
-    generateBtn.disabled = true;
-    generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
-    
-    // Show preview card with loaders
-    postPreview.classList.remove('d-none');
-    imageLoader.classList.remove('d-none');
-    contentLoader.classList.remove('d-none');
-    contentContainer.classList.add('d-none');
-    
-    // Show generating status
-    const status = document.createElement('div');
-    status.className = 'generate-status';
-    status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating your content...';
-    document.body.appendChild(status);
-    
-    try {
-        const formData = {
-            contentType: document.getElementById('contentType').value,
-            tone: document.getElementById('tone').value,
-            interests: Array.from(document.getElementById('interests').selectedOptions).map(option => option.value),
-            ageRange: document.getElementById('ageRange').value
-        };
-        
-        const response = await fetch('/api/generate-content', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            // Update preview content
-            const img = document.getElementById('generatedImage');
-            img.classList.add('loading');
-            img.src = data.imageUrl;
-            img.onload = () => {
-                img.classList.remove('loading');
-                imageLoader.classList.add('d-none');
-            };
-            
-            document.getElementById('generatedCaption').textContent = data.caption;
-            document.getElementById('generatedHashtags').innerHTML = data.hashtags
-                .map(tag => `<span class="hashtag">#${tag}</span>`).join('');
-            
-            // Show content
-            contentLoader.classList.add('d-none');
-            contentContainer.classList.remove('d-none');
-            
-            // Show scheduling info
-            const schedulingInfo = document.getElementById('schedulingInfo');
-            schedulingInfo.classList.remove('d-none');
-            document.getElementById('scheduledTime').textContent = new Date(data.scheduledTime).toLocaleString();
-            
-            // Show approve button
-            const approveBtn = document.getElementById('approveBtn');
-            approveBtn.classList.remove('d-none');
-            approveBtn.setAttribute('data-post-id', data.postId);
-            approveBtn.onclick = () => approvePost(data.postId);
-            
-            // Scroll to preview on mobile
-            if (window.innerWidth <= 768) {
-                postPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        } else {
-            throw new Error(data.error || 'Failed to generate content');
-        }
-    } catch (error) {
-        generateError.classList.remove('d-none');
-        document.getElementById('errorMessage').textContent = error.message;
-        postPreview.classList.add('d-none');
-    } finally {
-        generateBtn.disabled = false;
-        generateBtn.innerHTML = 'Generate Content';
-        status.remove();
-    }
-});
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('target-group-form');
+    const interestCheckboxes = document.querySelectorAll('input[name="interests"]');
+    const previewContainer = document.getElementById('ai-preview');
+    const scheduleButton = document.querySelector('.schedule-button');
 
-async function approvePost(postId) {
-    const approveBtn = document.getElementById('approveBtn');
-    approveBtn.disabled = true;
-    approveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Approving...';
-    
-    try {
-        const response = await fetch(`/api/approve-post/${postId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
+    // Limit interests selection to 3
+    interestCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const checkedBoxes = document.querySelectorAll('input[name="interests"]:checked');
+            if (checkedBoxes.length > 3) {
+                this.checked = false;
             }
         });
+    });
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
         
-        const data = await response.json();
-        
-        if (response.ok) {
-            approveBtn.classList.add('d-none');
-            document.getElementById('schedulingInfo').innerHTML += 
-                '<br><span class="text-success"><i class="fas fa-check-circle"></i> Post approved!</span>';
-        } else {
-            throw new Error(data.error || 'Failed to approve post');
+        const formData = new FormData(form);
+        const data = {
+            ageRange: formData.get('age-range'),
+            interests: Array.from(formData.getAll('interests')),
+            contentType: formData.get('content-type'),
+            tone: formData.get('tone')
+        };
+
+        try {
+            // Show loading state
+            previewContainer.querySelector('.image-preview').innerHTML = '<div class="placeholder">Bild wird generiert...</div>';
+            previewContainer.querySelector('.generated-caption').textContent = 'Caption wird generiert...';
+            previewContainer.querySelector('.generated-hashtags').innerHTML = 'Hashtags werden generiert...';
+
+            // Call backend API to generate content
+            const response = await fetch('/api/generate-content', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) throw new Error('Fehler bei der Content-Generierung');
+
+            const result = await response.json();
+
+            // Update preview with generated content
+            previewContainer.querySelector('.image-preview').innerHTML = `<img src="${result.imageUrl}" alt="Generated content">`;
+            previewContainer.querySelector('.generated-caption').textContent = result.caption;
+            
+            const hashtagsHtml = result.hashtags.map(tag => 
+                `<span class="hashtag">#${tag}</span>`
+            ).join('');
+            previewContainer.querySelector('.generated-hashtags').innerHTML = hashtagsHtml;
+
+            // Show schedule button
+            scheduleButton.style.display = 'flex';
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Fehler bei der Content-Generierung. Bitte versuche es später erneut.');
         }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    } finally {
-        approveBtn.disabled = false;
-        approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve Post';
-    }
-}
+    });
+
+    scheduleButton.addEventListener('click', function() {
+        // Redirect to scheduler with generated content
+        window.location.href = '/scheduler';
+    });
+});
 </script>
 {% endblock %}
