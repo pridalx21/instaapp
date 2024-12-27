@@ -235,19 +235,28 @@
                 </div>
                 <div id="contentDisplay" class="d-none">
                     <div class="mb-4">
-                        <img id="generatedImage" src="" alt="Generated Image" class="img-fluid rounded mb-3">
+                        <img id="generatedImage" src="" alt="Generated Image" class="img-fluid w-100 mb-4">
                     </div>
                     <div class="mb-4">
-                        <h3 class="h5 mb-2">Caption</h3>
-                        <p id="generatedCaption" class="mb-3"></p>
+                        <h3 class="h5 mb-3 text-primary">Caption</h3>
+                        <p id="generatedCaption" class="mb-4 text-dark"></p>
                     </div>
                     <div class="mb-4">
-                        <h3 class="h5 mb-2">Hashtags</h3>
+                        <h3 class="h5 mb-3 text-primary">Hashtags</h3>
                         <div id="generatedHashtags" class="d-flex flex-wrap gap-2"></div>
                     </div>
-                    <button class="btn btn-success w-100" onclick="window.location.href='/scheduler'">
-                        <i class="far fa-calendar-alt me-2"></i>Post planen
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success flex-grow-1" id="scheduleButton">
+                            <i class="far fa-calendar-check me-2"></i>Post planen
+                        </button>
+                        <button class="btn btn-primary" id="regenerateButton">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                    </div>
+                    <div id="scheduleSuccess" class="alert alert-success mt-3 d-none">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <span id="scheduleMessage"></span>
+                    </div>
                 </div>
                 <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
             </div>
@@ -328,6 +337,71 @@ interestCheckboxes.forEach(checkbox => {
             this.checked = false;
         }
     });
+});
+
+// Post planen
+document.getElementById('scheduleButton').addEventListener('click', async function() {
+    try {
+        const button = this;
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Plane Post...';
+        
+        const response = await fetch('/api/schedule-post', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                imageUrl: document.getElementById('generatedImage').src,
+                caption: document.getElementById('generatedCaption').textContent,
+                hashtags: Array.from(document.getElementById('generatedHashtags').children)
+                    .map(span => span.textContent.substring(1)), // Remove # from hashtags
+                ageRange: document.getElementById('ageRange').value,
+                interests: Array.from(document.querySelectorAll('input[name="interests"]:checked'))
+                    .map(checkbox => checkbox.value)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Zeige Erfolgsmeldung
+            const successDiv = document.getElementById('scheduleSuccess');
+            const messageSpan = document.getElementById('scheduleMessage');
+            messageSpan.textContent = result.message;
+            successDiv.classList.remove('d-none');
+            
+            // Deaktiviere den Schedule-Button
+            button.classList.remove('btn-success');
+            button.classList.add('btn-secondary');
+            button.innerHTML = '<i class="fas fa-check me-2"></i>Geplant';
+            button.disabled = true;
+        } else {
+            throw new Error(result.error || 'Failed to schedule post');
+        }
+    } catch (error) {
+        document.getElementById('errorMessage').textContent = error.message;
+        document.getElementById('errorMessage').classList.remove('d-none');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+});
+
+// Content neu generieren
+document.getElementById('regenerateButton').addEventListener('click', async function() {
+    // Verstecke vorherige Erfolgsmeldung
+    document.getElementById('scheduleSuccess').classList.add('d-none');
+    
+    // Aktiviere den Schedule-Button wieder
+    const scheduleButton = document.getElementById('scheduleButton');
+    scheduleButton.classList.remove('btn-secondary');
+    scheduleButton.classList.add('btn-success');
+    scheduleButton.innerHTML = '<i class="far fa-calendar-check me-2"></i>Post planen';
+    scheduleButton.disabled = false;
+    
+    // Generiere neuen Content
+    document.getElementById('targetingForm').dispatchEvent(new Event('submit'));
 });
 </script>
 {% endblock %}

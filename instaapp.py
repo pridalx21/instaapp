@@ -12,6 +12,8 @@ from PIL import Image
 import io
 import base64
 import time
+import random
+from flask_sqlalchemy import SQLAlchemy
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +26,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Session expires 
 app.config['DEBUG'] = False  # Disable debug mode in production
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size for videos
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
+db = SQLAlchemy(app)
 
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -233,6 +237,117 @@ def generate_image_with_stable_diffusion(prompt):
     except Exception as e:
         app.logger.error(f"Error generating image: {str(e)}")
         raise
+
+class Post(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    image_url = db.Column(db.String(200), nullable=False)
+    caption = db.Column(db.String(200), nullable=False)
+    hashtags = db.Column(db.String(200), nullable=False)
+    scheduled_time = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(50), nullable=False)
+
+    def __init__(self, user_id, image_url, caption, hashtags, scheduled_time, status):
+        self.user_id = user_id
+        self.image_url = image_url
+        self.caption = caption
+        self.hashtags = hashtags
+        self.scheduled_time = scheduled_time
+        self.status = status
+
+def calculate_optimal_posting_time(target_age, interests):
+    """
+    Berechnet den optimalen Posting-Zeitpunkt basierend auf der Zielgruppe
+    """
+    # Basis-Zeitfenster für verschiedene Altersgruppen
+    age_windows = {
+        "13-17": [(15, 17), (19, 21)],  # Nachmittag nach Schule und früher Abend
+        "18-24": [(12, 14), (20, 23)],  # Mittagspause und später Abend
+        "25-34": [(11, 13), (19, 21)],  # Mittagspause und nach Arbeit
+        "35-44": [(9, 11), (20, 22)],   # Vormittag und Abend
+        "45+": [(8, 10), (19, 21)]      # Früher Morgen und früher Abend
+    }
+    
+    # Interessen-basierte Anpassungen (in Stunden)
+    interest_adjustments = {
+        "Mode & Beauty": 1,      # Eher später am Tag
+        "Fitness & Gesundheit": -2,  # Eher früher am Tag
+        "Reisen & Abenteuer": 0,
+        "Essen & Kochen": -1,    # Eher zur Essenszeit
+        "Technologie": 2,        # Eher später am Tag
+        "Business": -3           # Eher während Arbeitszeit
+    }
+    
+    # Standardzeitfenster falls Alter nicht erkannt
+    age_range = "18-24"
+    for age_key in age_windows.keys():
+        if age_key in target_age:
+            age_range = age_key
+            break
+    
+    # Wähle zufälliges Zeitfenster für den Tag
+    time_windows = age_windows[age_range]
+    selected_window = random.choice(time_windows)
+    
+    # Berechne Durchschnitt der Interessens-Anpassungen
+    total_adjustment = 0
+    for interest in interests:
+        if interest in interest_adjustments:
+            total_adjustment += interest_adjustments[interest]
+    avg_adjustment = total_adjustment / len(interests) if interests else 0
+    
+    # Berechne optimale Stunde innerhalb des Zeitfensters
+    start_hour, end_hour = selected_window
+    target_hour = min(max(start_hour + avg_adjustment, start_hour), end_hour)
+    
+    # Setze Datum auf morgen
+    tomorrow = datetime.now() + timedelta(days=1)
+    posting_time = tomorrow.replace(
+        hour=int(target_hour),
+        minute=random.randint(0, 59),
+        second=0,
+        microsecond=0
+    )
+    
+    return posting_time
+
+@app.route('/api/schedule-post', methods=['POST'])
+@login_required
+def schedule_post():
+    try:
+        data = request.json
+        
+        # Berechne optimalen Postzeitpunkt
+        posting_time = calculate_optimal_posting_time(
+            data['ageRange'],
+            data['interests']
+        )
+        
+        # Speichere den Post in der Datenbank
+        new_post = Post(
+            user_id=1, # current_user.id,
+            image_url=data['imageUrl'],
+            caption=data['caption'],
+            hashtags=','.join(data['hashtags']),
+            scheduled_time=posting_time,
+            status='scheduled'
+        )
+        
+        db.session.add(new_post)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'scheduledTime': posting_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'message': f'Post geplant für {posting_time.strftime("%d.%m.%Y um %H:%M")} Uhr'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error scheduling post: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/generate_post', methods=['GET', 'POST'])
 def generate_post_function():
