@@ -32,6 +32,15 @@ db = SQLAlchemy(app)
 # Create tables on startup
 with app.app_context():
     db.create_all()
+    
+    # Create test user if it doesn't exist
+    test_user = User.query.filter_by(username='testuser').first()
+    if not test_user:
+        test_user = User(username='testuser', email='test@example.com')
+        db.session.add(test_user)
+        db.session.commit()
+        app.logger.info('Test user created successfully!')
+    
     app.logger.info('Database tables created successfully!')
 
 # Create upload folder if it doesn't exist
