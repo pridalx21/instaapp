@@ -1,5 +1,5 @@
 {
     "INSTAGRAM_CLIENT_ID": "1558999001389004",
     "INSTAGRAM_CLIENT_SECRET": "934169c5c167aa3bf82c02b099af5745",
-    "INSTAGRAM_REDIRECT_URI": "http://localhost:5000/auth/instagram/callback"
+    "INSTAGRAM_REDIRECT_URI": "https://instaapp.onrender.com/auth/instagram/callback"
 }

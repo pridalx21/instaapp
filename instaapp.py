@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import requests
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from datetime import datetime
 import json
 from werkzeug.utils import secure_filename
@@ -280,6 +280,37 @@ def privacy_policy():
 @app.route('/terms')
 def terms():
     return render_template('terms.html')
+
+@app.route('/deauthorize', methods=['POST'])
+def deauthorize():
+    try:
+        # Verarbeite die Deauthorisierung von Instagram
+        signed_request = request.form.get('signed_request')
+        if not signed_request:
+            return jsonify({'error': 'No signed_request parameter'}), 400
+
+        # Hier können Sie den signed_request verarbeiten und die Benutzerinformationen löschen
+        # Für jetzt senden wir einfach eine erfolgreiche Antwort
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/data-deletion', methods=['POST'])
+def data_deletion_post():
+    try:
+        # Verarbeite die Datenlöschungsanfrage von Instagram
+        signed_request = request.form.get('signed_request')
+        if not signed_request:
+            return jsonify({'error': 'No signed_request parameter'}), 400
+
+        # Hier können Sie den signed_request verarbeiten und die Benutzerdaten löschen
+        # Für jetzt senden wir einfach eine erfolgreiche Antwort
+        return jsonify({
+            'url': 'https://instaapp.onrender.com/privacy-policy',
+            'confirmation_code': 'CONFIRMATION_CODE'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
