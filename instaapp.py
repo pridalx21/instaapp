@@ -1,11 +1,5 @@
 import os
 from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-print("OpenAI API Key:", os.getenv('OPENAI_API_KEY'))
-import os
-from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from datetime import datetime, timedelta
 import json
@@ -13,19 +7,11 @@ from werkzeug.utils import secure_filename
 import logging
 import secrets
 from functools import wraps
-from openai import OpenAI
-import os
+import requests
 from PIL import Image
 import io
 import base64
 import time
-from openai import RateLimitError
-import time
-from openai import RateLimitError
-import time
-from openai import RateLimitError
-
-
 
 # Load environment variables from .env file
 load_dotenv()
@@ -197,21 +183,18 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Initialize OpenAI client with error handling
-try:
-    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-except Exception as e:
-    print(f"Error initializing OpenAI client: {e}")
-    client = None
+# Hugging Face API Configuration
+HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/"
+TEXT_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"  # Für Text-Generierung
+IMAGE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"  # Für Bild-Generierung
 
-# Production configuration
-if os.environ.get('RENDER'):
-    # Force HTTPS
-    @app.before_request
-    def before_request():
-        if not request.is_secure and request.headers.get('X-Forwarded-Proto', 'http') == 'http':
-            url = request.url.replace('http://', 'https://', 1)
-            return redirect(url, code=301)
+headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+
+def query_huggingface(payload, model):
+    """Generic function to query Hugging Face API"""
+    response = requests.post(f"{HUGGINGFACE_API_URL}{model}", headers=headers, json=payload)
+    return response.json()
 
 @app.route('/generate_post', methods=['GET', 'POST'])
 def generate_post_function():
@@ -220,17 +203,9 @@ def generate_post_function():
         
         for attempt in range(10):  # Try 3 times
             try:
-                response = client.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                generated_post = response['choices'][0]['message']['content']
+                response = query_huggingface({"inputs": prompt}, TEXT_MODEL)
+                generated_post = response[0]['generated_text']
                 return render_template('generate_post.html', generated_post=generated_post)
-            except RateLimitError:
-                if attempt < 2:  # If not the last attempt
-                    time.sleep(2 ** attempt)  # Exponential backoff
-                else:
-                    return render_template('generate_post.html', error="Rate limit exceeded. Please try again later.")
             except Exception as e:
                 return render_template('generate_post.html', error=f"An error occurred: {str(e)}")
     
@@ -532,42 +507,52 @@ def targeting():
 @app.route('/api/generate-content', methods=['POST'])
 @login_required
 def generate_content():
-    if not os.getenv('OPENAI_API_KEY'):
-        return jsonify({'error': 'OpenAI API key is not configured'}), 500
+    if not HUGGINGFACE_API_KEY:
+        app.logger.error("Hugging Face API key is missing")
+        return jsonify({'error': 'Hugging Face API key is not configured'}), 500
     
     try:
         data = request.json
+        app.logger.info(f"Received content generation request: {data}")
+        
         required_fields = ['contentType', 'tone', 'interests', 'ageRange']
         
         # Validate required fields
         if not all(field in data for field in required_fields):
-            return jsonify({'error': 'Missing required fields'}), 400
-            
-        # Validate interests
-        if not isinstance(data['interests'], list) or len(data['interests']) == 0:
-            return jsonify({'error': 'Interests must be a non-empty list'}), 400
-            
+            missing_fields = [field for field in required_fields if field not in data]
+            app.logger.error(f"Missing required fields: {missing_fields}")
+            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
+        
         try:
-            # Generate image prompt based on interests and content type
+            # Generate image prompt
+            app.logger.info("Generating image prompt...")
             image_prompt = generate_image_prompt(data)
+            app.logger.info(f"Generated image prompt: {image_prompt}")
             
-            # Generate image using DALL-E
-            image_response = client.images.generate(
-                model="dall-e-3",
-                prompt=image_prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1,
-            )
+            # Generate image using Stable Diffusion
+            app.logger.info("Calling Stable Diffusion API...")
+            image_payload = {
+                "inputs": image_prompt,
+                "parameters": {
+                    "negative_prompt": "blurry, bad quality, distorted",
+                    "num_inference_steps": 50,
+                    "guidance_scale": 7.5
+                }
+            }
+            image_response = query_huggingface(image_payload, IMAGE_MODEL)
             
-            # Get the image URL
-            image_url = image_response.data[0].url
+            if isinstance(image_response, dict) and 'error' in image_response:
+                raise Exception(image_response['error'])
+            
+            # Convert image to base64
+            image_data = base64.b64encode(image_response).decode('utf-8')
+            image_url = f"data:image/jpeg;base64,{image_data}"
+            app.logger.info("Successfully generated image")
             
             # Generate caption and hashtags
+            app.logger.info("Generating text content...")
             content = generate_text_content(data)
-            
-            # Log successful generation
-            app.logger.info(f"Successfully generated content for {data['contentType']} post")
+            app.logger.info("Successfully generated text content")
             
             return jsonify({
                 'imageUrl': image_url,
@@ -575,21 +560,17 @@ def generate_content():
                 'hashtags': content['hashtags']
             })
             
-        except RateLimitError:
-            app.logger.error("OpenAI API rate limit exceeded")
-            return jsonify({'error': 'Rate limit exceeded. Please try again later.'}), 429
-            
         except Exception as e:
-            app.logger.error(f"Error generating content: {str(e)}")
-            return jsonify({'error': 'Content generation failed. Please try again.'}), 500
+            app.logger.error(f"Error during content generation: {str(e)}")
+            return jsonify({'error': f'Content generation failed: {str(e)}'}), 500
             
     except Exception as e:
         app.logger.error(f"Error processing request: {str(e)}")
-        return jsonify({'error': 'Invalid request format'}), 400
+        return jsonify({'error': f'Invalid request format: {str(e)}'}), 400
 
 def generate_image_prompt(data):
-    # Enhanced prompt template for better image generation
-    base_prompt = f"""Create an engaging, Instagram-worthy image for a {data['contentType']} post.
+    """Generate image prompt using Mistral"""
+    prompt_template = f"""Create an engaging Instagram-worthy image prompt for a {data['contentType']} post.
     Target audience: {data['ageRange']} year olds
     Interests: {', '.join(data['interests'])}
     Tone: {data['tone']}
@@ -600,39 +581,35 @@ def generate_image_prompt(data):
     - Make it suitable for Instagram's square format
     - Keep it authentic and relatable
     - Include relevant visual elements that appeal to the target audience
-    """
     
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": """You are an expert at creating detailed image generation prompts that result in high-quality, 
-                Instagram-worthy images. Focus on creating prompts that will generate images that are:
-                1. Visually striking and attention-grabbing
-                2. Well-composed with good lighting
-                3. Suitable for Instagram's square format
-                4. Authentic and relatable
-                5. Appealing to the target audience"""},
-                {"role": "user", "content": base_prompt}
-            ],
-            temperature=0.7
-        )
+    Provide only the image generation prompt, nothing else."""
+    
+    payload = {
+        "inputs": prompt_template,
+        "parameters": {
+            "max_new_tokens": 100,
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "do_sample": True
+        }
+    }
+    
+    response = query_huggingface(payload, TEXT_MODEL)
+    
+    if isinstance(response, dict) and 'error' in response:
+        raise Exception(response['error'])
         
-        return response.choices[0].message.content
-        
-    except Exception as e:
-        app.logger.error(f"Error generating image prompt: {str(e)}")
-        raise
+    return response[0]['generated_text'].strip()
 
 def generate_text_content(data):
-    # Enhanced prompt for better caption and hashtag generation
-    prompt = f"""Create an engaging Instagram post caption and hashtags for a {data['contentType']} post.
-
+    """Generate caption and hashtags using Mistral"""
+    prompt = f"""Create an Instagram post caption and hashtags for a {data['contentType']} post.
+    
     Target Audience:
     - Age Range: {data['ageRange']}
     - Interests: {', '.join(data['interests'])}
     - Tone: {data['tone']}
-
+    
     Requirements:
     1. Caption should be engaging and authentic
     2. Include emojis where appropriate
@@ -644,23 +621,37 @@ def generate_text_content(data):
     1. caption: The main post text (including emojis and line breaks)
     2. hashtags: An array of relevant hashtags (without the # symbol)"""
     
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 250,
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "do_sample": True,
+            "return_full_text": False
+        }
+    }
+    
+    response = query_huggingface(payload, TEXT_MODEL)
+    
+    if isinstance(response, dict) and 'error' in response:
+        raise Exception(response['error'])
+    
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": """You are an expert Instagram content creator who writes engaging captions 
-                and selects trending hashtags. Your captions are authentic, relatable, and drive engagement."""},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={ "type": "json_object" },
-            temperature=0.7
-        )
-        
-        return json.loads(response.choices[0].message.content)
-        
+        # Extract JSON from the response
+        response_text = response[0]['generated_text']
+        # Find the JSON part of the response
+        json_start = response_text.find('{')
+        json_end = response_text.rfind('}') + 1
+        json_str = response_text[json_start:json_end]
+        return json.loads(json_str)
     except Exception as e:
-        app.logger.error(f"Error generating text content: {str(e)}")
-        raise
+        app.logger.error(f"Error parsing text generation response: {str(e)}")
+        # Fallback response if JSON parsing fails
+        return {
+            'caption': response[0]['generated_text'].strip(),
+            'hashtags': []
+        }
 
 if __name__ == '__main__':
     # Use production server when deployed
