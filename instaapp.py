@@ -23,7 +23,10 @@ def load_settings():
         return {
             'INSTAGRAM_CLIENT_ID': '1672953986597793',
             'INSTAGRAM_CLIENT_SECRET': '934169c5c167aa3bf82c02b099af5745',
-            'INSTAGRAM_REDIRECT_URI': 'http://localhost:5000/auth/instagram/callback'
+            'INSTAGRAM_REDIRECT_URI': 'http://localhost:5000/auth/instagram/callback',
+            'FACEBOOK_APP_ID': 'your_facebook_app_id',
+            'FACEBOOK_APP_SECRET': 'your_facebook_app_secret',
+            'FACEBOOK_REDIRECT_URI': 'https://instaapp.onrender.com/auth/facebook/callback'
         }
     except Exception as e:
         print(f"Error loading settings: {e}")
@@ -199,10 +202,11 @@ def generate_appsecret_proof(access_token):
 @app.route('/auth/facebook')
 def facebook_login():
     # Facebook Login URL mit den erforderlichen Berechtigungen
+    settings = load_settings()
     fb_login_url = "https://www.facebook.com/v18.0/dialog/oauth"
     params = {
-        'client_id': os.getenv('FACEBOOK_APP_ID'),
-        'redirect_uri': os.getenv('FACEBOOK_REDIRECT_URI', 'https://instaapp.onrender.com/auth/facebook/callback'),
+        'client_id': settings['FACEBOOK_APP_ID'],
+        'redirect_uri': settings['FACEBOOK_REDIRECT_URI'],
         'scope': 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
         'response_type': 'code'
     }
@@ -213,6 +217,7 @@ def facebook_login():
 
 @app.route('/auth/facebook/callback')
 def facebook_callback():
+    settings = load_settings()
     # Hole den Auth Code aus den URL-Parametern
     code = request.args.get('code')
     if not code:
@@ -223,14 +228,14 @@ def facebook_callback():
     try:
         token_url = 'https://graph.facebook.com/v18.0/oauth/access_token'
         token_params = {
-            'client_id': os.getenv('FACEBOOK_APP_ID'),
-            'client_secret': os.getenv('FACEBOOK_APP_SECRET'),
-            'redirect_uri': os.getenv('FACEBOOK_REDIRECT_URI', 'https://instaapp.onrender.com/auth/facebook/callback'),
+            'client_id': settings['FACEBOOK_APP_ID'],
+            'client_secret': settings['FACEBOOK_APP_SECRET'],
+            'redirect_uri': settings['FACEBOOK_REDIRECT_URI'],
             'code': code
         }
         
         response = requests.get(token_url, params=token_params)
-        response.raise_for_status()  # Wirft eine Exception bei HTTP-Fehlern
+        response.raise_for_status()
         token_data = response.json()
         access_token = token_data.get('access_token')
         
