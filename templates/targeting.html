@@ -1,242 +1,19 @@
 {% extends "base.html" %}
 
-{% block head %}
-<style>
-    :root {
-        --primary-color: #6c5ce7;
-        --accent-color: #7a5af8;
-        --border-color: #e0e0e0;
-        --gradient: linear-gradient(90deg, #6c5ce7, #7a5af8);
-    }
-
-    .targeting-container {
-        max-width: 1200px;
-        margin: 80px auto 0;
-        padding: 40px 20px;
-    }
-
-    .targeting-header {
-        text-align: center;
-        margin-bottom: 50px;
-    }
-
-    .targeting-title {
-        font-size: 36px;
-        font-weight: bold;
-        background: var(--gradient);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 15px;
-    }
-
-    .targeting-subtitle {
-        color: #666;
-        font-size: 18px;
-    }
-
-    .targeting-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-        gap: 30px;
-        margin-bottom: 40px;
-    }
-
-    .targeting-card {
-        background: white;
-        border-radius: 15px;
-        padding: 30px;
-        box-shadow: 0 4px 20px rgba(108, 92, 231, 0.1);
-        transition: all 0.3s ease;
-    }
-
-    .targeting-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 30px rgba(108, 92, 231, 0.2);
-    }
-
-    .targeting-section {
-        margin-bottom: 30px;
-    }
-
-    .section-title {
-        font-size: 20px;
-        color: var(--primary-color);
-        margin-bottom: 15px;
-    }
-
-    .hashtag-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 20px;
-    }
-
-    .hashtag {
-        background: #f8f9fa;
-        padding: 8px 15px;
-        border-radius: 20px;
-        font-size: 14px;
-        color: #666;
-        transition: all 0.3s ease;
-    }
-
-    .hashtag:hover {
-        background: var(--gradient);
-        color: white;
-        transform: translateY(-2px);
-    }
-
-    .time-slot {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px;
-        background: #f8f9fa;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        transition: all 0.3s ease;
-    }
-
-    .time-slot:hover {
-        background: var(--gradient);
-        color: white;
-        transform: translateY(-2px);
-    }
-
-    .time {
-        font-weight: 600;
-    }
-
-    .engagement {
-        font-size: 14px;
-        color: #666;
-    }
-
-    .time-slot:hover .engagement {
-        color: white;
-    }
-
-    .audience-chart {
-        width: 100%;
-        height: 300px;
-        background: #f8f9fa;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #666;
-        font-size: 18px;
-        margin-top: 20px;
-    }
-
-    .form-group {
-        margin-bottom: 20px;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 16px;
-    }
-
-    .interests-container {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-        margin-top: 10px;
-    }
-
-    .interest-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-    }
-
-    .generate-button, .schedule-button {
-        width: 100%;
-        padding: 15px;
-        background: var(--gradient);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        transition: all 0.3s ease;
-    }
-
-    .generate-button:hover, .schedule-button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(108, 92, 231, 0.2);
-    }
-
-    .button-icon {
-        font-size: 20px;
-    }
-
-    .preview-container {
-        margin-top: 20px;
-    }
-
-    .image-preview {
-        width: 100%;
-        height: 300px;
-        background: #f8f9fa;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 20px;
-    }
-
-    .caption-preview, .hashtags-preview {
-        margin-bottom: 20px;
-    }
-
-    .caption-preview h4, .hashtags-preview h4 {
-        color: var(--primary-color);
-        margin-bottom: 10px;
-    }
-
-    .generated-caption {
-        font-size: 16px;
-        line-height: 1.6;
-        color: #333;
-    }
-
-    .generated-hashtags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .schedule-button {
-        margin-top: 20px;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <!-- Linke Spalte: Eingabeformular -->
         <div class="col-md-6">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">Content Generator</h5>
                 </div>
                 <div class="card-body">
                     <form id="contentForm" class="needs-validation" novalidate>
                         <div class="mb-3">
-                            <label for="contentType" class="form-label">Content Type</label>
-                            <select class="form-select" id="contentType" required>
+                            <label for="content-type" class="form-label">Content Type</label>
+                            <select class="form-select" id="content-type" name="content-type" required>
                                 <option value="lifestyle">Lifestyle</option>
                                 <option value="food">Food</option>
                                 <option value="travel">Travel</option>
@@ -247,7 +24,7 @@
 
                         <div class="mb-3">
                             <label for="tone" class="form-label">Tone</label>
-                            <select class="form-select" id="tone" required>
+                            <select class="form-select" id="tone" name="tone" required>
                                 <option value="professional">Professional</option>
                                 <option value="casual">Casual</option>
                                 <option value="funny">Funny</option>
@@ -257,7 +34,7 @@
 
                         <div class="mb-3">
                             <label for="interests" class="form-label">Target Interests</label>
-                            <select class="form-select" id="interests" multiple required>
+                            <select class="form-select" id="interests" name="interests" multiple required>
                                 <option value="photography">Photography</option>
                                 <option value="art">Art</option>
                                 <option value="music">Music</option>
@@ -271,8 +48,8 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="ageRange" class="form-label">Target Age Range</label>
-                            <select class="form-select" id="ageRange" required>
+                            <label for="age-range" class="form-label">Target Age Range</label>
+                            <select class="form-select" id="age-range" name="age-range" required>
                                 <option value="18-24">18-24</option>
                                 <option value="25-34">25-34</option>
                                 <option value="35-44">35-44</option>
@@ -281,7 +58,9 @@
                             </select>
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100">Generate Content</button>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-magic me-2"></i>Generate Content
+                        </button>
                     </form>
                 </div>
             </div>
@@ -289,15 +68,15 @@
 
         <!-- Rechte Spalte: Vorschau -->
         <div class="col-md-6">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">Post Preview</h5>
                 </div>
                 <div class="card-body">
                     <div id="previewContainer" class="d-none">
                         <!-- Instagram-Style Post Preview -->
-                        <div class="instagram-post">
-                            <div class="post-header d-flex align-items-center mb-2">
+                        <div class="instagram-post border rounded">
+                            <div class="post-header d-flex align-items-center p-3">
                                 <img src="{{ url_for('static', filename='img/profile.png') }}" alt="Profile" class="rounded-circle me-2" style="width: 32px; height: 32px;">
                                 <span class="fw-bold">{{ session.get('user_info', {}).get('username', 'Your Profile') }}</span>
                             </div>
@@ -308,7 +87,7 @@
                             </div>
                             
                             <!-- Engagement Icons -->
-                            <div class="post-actions d-flex gap-3 my-2">
+                            <div class="post-actions d-flex gap-3 p-3">
                                 <i class="bi bi-heart fs-4"></i>
                                 <i class="bi bi-chat fs-4"></i>
                                 <i class="bi bi-send fs-4"></i>
@@ -316,7 +95,7 @@
                             </div>
                             
                             <!-- Caption und Hashtags -->
-                            <div class="post-content">
+                            <div class="post-content p-3">
                                 <p class="mb-1">
                                     <span class="fw-bold">{{ session.get('user_info', {}).get('username', 'Your Profile') }}</span>
                                     <span id="previewCaption"></span>
@@ -367,10 +146,10 @@ document.getElementById('contentForm').addEventListener('submit', async function
     // Get form data
     const interests = Array.from(document.getElementById('interests').selectedOptions).map(option => option.value);
     const data = {
-        contentType: document.getElementById('contentType').value,
+        contentType: document.getElementById('content-type').value,
         tone: document.getElementById('tone').value,
         interests: interests,
-        ageRange: document.getElementById('ageRange').value
+        ageRange: document.getElementById('age-range').value
     };
     
     try {

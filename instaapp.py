@@ -545,49 +545,33 @@ def targeting():
 @app.route('/api/generate-content', methods=['POST'])
 @login_required
 def generate_content():
-    if not HUGGINGFACE_API_KEY:
-        app.logger.error("Hugging Face API key is missing")
-        return jsonify({'error': 'Hugging Face API key is not configured'}), 500
-    
     try:
         data = request.json
-        app.logger.info(f"Received content generation request: {data}")
+        app.logger.info(f"Received data: {data}")
         
+        # Validate required fields
         required_fields = ['contentType', 'tone', 'interests', 'ageRange']
         if not all(field in data for field in required_fields):
-            missing_fields = [field for field in required_fields if field not in data]
-            app.logger.error(f"Missing required fields: {missing_fields}")
-            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Generate image based on content type and interests
+        prompt = f"Create a {data['contentType']} image that appeals to {data['ageRange']} year olds interested in {', '.join(data['interests'])}. Style: {data['tone']}"
+        image_url = generate_image_with_stable_diffusion(prompt)
+        app.logger.info("Successfully generated image")
         
-        try:
-            # Generate image prompt
-            app.logger.info("Generating image prompt...")
-            image_prompt = generate_image_prompt(data)
-            app.logger.info(f"Generated image prompt: {image_prompt}")
-            
-            # Generate image
-            app.logger.info("Generating image with Stable Diffusion...")
-            image_url = generate_image_with_stable_diffusion(image_prompt)
-            app.logger.info("Successfully generated image")
-            
-            # Generate caption and hashtags
-            app.logger.info("Generating text content...")
-            content = generate_text_content(data)
-            app.logger.info("Successfully generated text content")
-            
-            return jsonify({
-                'imageUrl': image_url,
-                'caption': content['caption'],
-                'hashtags': content['hashtags']
-            })
-            
-        except Exception as e:
-            app.logger.error(f"Error during content generation: {str(e)}")
-            return jsonify({'error': str(e)}), 500
-            
+        # Generate text content
+        content = generate_text_content(data)
+        app.logger.info("Successfully generated text content")
+        
+        return jsonify({
+            'imageUrl': image_url,
+            'caption': content['caption'],
+            'hashtags': content['hashtags']
+        })
+        
     except Exception as e:
-        app.logger.error(f"Error processing request: {str(e)}")
-        return jsonify({'error': f'Invalid request format: {str(e)}'}), 400
+        app.logger.error(f"Error generating content: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 def generate_image_prompt(data):
     """Generate image prompt using Zephyr"""
