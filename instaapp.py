@@ -12,6 +12,11 @@ from PIL import Image
 import io
 import base64
 import time
+from flask_sqlalchemy import SQLAlchemy
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from datetime import datetime, timedelta
+import pytz
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +29,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Session expires 
 app.config['DEBUG'] = False  # Disable debug mode in production
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size for videos
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -31,6 +38,29 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Logging konfigurieren
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Database configuration
+db = SQLAlchemy(app)
+
+# Post Model
+class ScheduledPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    image_url = db.Column(db.String(500))
+    caption = db.Column(db.Text)
+    hashtags = db.Column(db.Text)  # Stored as JSON string
+    scheduled_time = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, approved, posted, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    engagement_score = db.Column(db.Float)  # Predicted engagement score
+    user_id = db.Column(db.Integer)  # Link to user who created the post
+
+# Create database tables
+with app.app_context():
+    db.create_all()
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+scheduler.start()
 
 # File Upload Configuration
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -234,6 +264,130 @@ def generate_image_with_stable_diffusion(prompt):
         app.logger.error(f"Error generating image: {str(e)}")
         raise
 
+def calculate_optimal_posting_time(user_id):
+    """Calculate the optimal posting time based on engagement data"""
+    # Zeitfenster für die nächsten 24 Stunden
+    now = datetime.now(pytz.UTC)
+    tomorrow = now + timedelta(days=1)
+    
+    # Beste Zeiten basierend auf Ihrer Zielgruppe
+    peak_hours = [
+        (9, 0),   # 9:00 AM
+        (12, 0),  # 12:00 PM
+        (15, 0),  # 3:00 PM
+        (18, 0),  # 6:00 PM
+        (20, 0)   # 8:00 PM
+    ]
+    
+    # Finde die nächste verfügbare Peak-Zeit
+    for hour, minute in peak_hours:
+        potential_time = now.replace(hour=hour, minute=minute)
+        if potential_time < now:
+            potential_time += timedelta(days=1)
+        if potential_time <= tomorrow:
+            return potential_time
+    
+    return tomorrow.replace(hour=9, minute=0)  # Default to tomorrow 9 AM
+
+@app.route('/api/schedule-post', methods=['POST'])
+@login_required
+def schedule_post():
+    try:
+        data = request.json
+        
+        # Validiere die Daten
+        if not all(key in data for key in ['imageUrl', 'caption', 'hashtags']):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Berechne die optimale Posting-Zeit
+        optimal_time = calculate_optimal_posting_time(session.get('user_id'))
+        
+        # Erstelle einen neuen geplanten Post
+        post = ScheduledPost(
+            image_url=data['imageUrl'],
+            caption=data['caption'],
+            hashtags=json.dumps(data['hashtags']),
+            scheduled_time=optimal_time,
+            user_id=session.get('user_id')
+        )
+        
+        db.session.add(post)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Post scheduled successfully',
+            'scheduledTime': optimal_time.isoformat(),
+            'postId': post.id
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Error scheduling post: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/approve-post/<int:post_id>', methods=['POST'])
+@login_required
+def approve_post(post_id):
+    try:
+        post = ScheduledPost.query.get_or_404(post_id)
+        
+        if post.user_id != session.get('user_id'):
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        post.status = 'approved'
+        db.session.commit()
+        
+        return jsonify({'message': 'Post approved successfully'})
+        
+    except Exception as e:
+        app.logger.error(f"Error approving post: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/scheduled-posts')
+@login_required
+def view_scheduled_posts():
+    posts = ScheduledPost.query.filter_by(
+        user_id=session.get('user_id')
+    ).order_by(ScheduledPost.scheduled_time).all()
+    
+    return render_template('scheduled_posts.html', posts=posts)
+
+def post_to_instagram(post_id):
+    """Funktion zum Posten auf Instagram"""
+    try:
+        post = ScheduledPost.query.get(post_id)
+        if not post or post.status != 'approved':
+            return
+        
+        # Hier kommt die Instagram API Integration
+        # TODO: Implementiere das tatsächliche Posten
+        
+        post.status = 'posted'
+        db.session.commit()
+        
+    except Exception as e:
+        app.logger.error(f"Error posting to Instagram: {str(e)}")
+        post.status = 'failed'
+        db.session.commit()
+
+# Schedule checking for posts every minute
+@scheduler.scheduled_job('interval', minutes=1)
+def check_scheduled_posts():
+    with app.app_context():
+        try:
+            # Finde alle approved Posts, die gepostet werden sollen
+            now = datetime.utcnow()
+            posts = ScheduledPost.query.filter_by(
+                status='approved'
+            ).filter(
+                ScheduledPost.scheduled_time <= now
+            ).all()
+            
+            for post in posts:
+                post_to_instagram(post.id)
+                
+        except Exception as e:
+            app.logger.error(f"Error checking scheduled posts: {str(e)}")
+
 @app.route('/generate_post', methods=['GET', 'POST'])
 def generate_post_function():
     if request.method == 'POST':
@@ -333,129 +487,51 @@ def schedule_posts():
                 if media_file and media_file.filename:
                     media_filename = secure_filename(media_file.filename)
                     media_filepath = os.path.join(app.config['UPLOAD_FOLDER'], media_filename)
-                    try:
-                        media_file.save(media_filepath)
-                    except Exception as e:
-                        logger.error(f'Fehler beim Speichern der Mediendatei: {str(e)}')
-                        flash(f'Fehler beim Speichern der Mediendatei: {media_file.filename}', 'error')
-                        continue
-
-                # Handle audio file if present
-                audio_url = None
-                if audio_file and audio_file.filename:
-                    if not allowed_file(audio_file.filename, 'audio'):
-                        flash(f'Ungültiges Audio-Format. Erlaubte Formate: {", ".join(ALLOWED_AUDIO_EXTENSIONS)}', 'error')
-                        continue
+                    logger.debug(f'Saving image to: {filepath}')
+                    media_file.save(media_filepath)
                     
-                    audio_filename = secure_filename(audio_file.filename)
-                    audio_filepath = os.path.join(app.config['UPLOAD_FOLDER'], audio_filename)
-                    try:
-                        audio_file.save(audio_filepath)
-                        audio_url = url_for('static', filename=f'uploads/{audio_filename}')
-                    except Exception as e:
-                        logger.error(f'Fehler beim Speichern der Audiodatei: {str(e)}')
-                        flash(f'Fehler beim Speichern der Audiodatei: {audio_file.filename}', 'error')
-                        continue
+                    if 'user_info' not in session:
+                        session['user_info'] = FAKE_PROFILE.copy()
+                    user_info = session['user_info']
+                    
+                    # Initialisiere media Dictionary falls es noch nicht existiert
+                    if 'media' not in user_info:
+                        user_info['media'] = {'data': []}
+                    
+                    caption = request.form.get('caption', '')
+                    schedule_time = request.form.get('schedule')
+                    
+                    # Validate schedule time
+                    is_valid, error_msg = validate_schedule_time(schedule_time)
+                    if not is_valid:
+                        flash(error_msg, 'error')
+                        return redirect(url_for('scheduler'))
+                    
+                    new_post = {
+                        'id': str(len(user_info['media']['data']) + 1),
+                        'caption': caption,
+                        'media_type': 'IMAGE',
+                        'media_url': url_for('static', filename=f'uploads/{filename}'),
+                        'thumbnail_url': url_for('static', filename=f'uploads/{filename}'),
+                        'permalink': '#',
+                        'timestamp': schedule_time
+                    }
+                    
+                    user_info['media']['data'].append(new_post)
+                    user_info['media_count'] = len(user_info['media']['data'])
+                    session['user_info'] = user_info
+                    logger.debug('Post added to user_info')
 
-                # Add to user media
-                new_post = {
-                    'id': str(len(user_info['media']['data']) + 1),
-                    'caption': caption,
-                    'media_type': post_type.upper(),
-                    'post_format': post_format,
-                    'media_url': url_for('static', filename=f'uploads/{media_filename}'),
-                    'thumbnail_url': url_for('static', filename=f'uploads/{media_filename}'),
-                    'audio_url': audio_url,
-                    'permalink': '#',
-                    'timestamp': schedule
-                }
+                    flash('Beitrag erfolgreich geplant!', 'success')
+                    return redirect(url_for('dashboard'))
 
-                user_info['media']['data'].append(new_post)
-                successful_posts += 1
-
-            except Exception as e:
-                logger.error(f'Fehler beim Verarbeiten des Posts: {str(e)}')
-                flash(f'Fehler beim Verarbeiten eines Posts: {str(e)}', 'error')
-                continue
-
-        if successful_posts > 0:
-            user_info['media_count'] = len(user_info['media']['data'])
-            session['user_info'] = user_info
-            flash(f'{successful_posts} {"Post wurde" if successful_posts == 1 else "Posts wurden"} erfolgreich geplant', 'success')
-        else:
-            flash('Keine Posts konnten geplant werden', 'error')
-
-        return redirect(url_for('dashboard'))
-
-    except Exception as e:
-        logger.error(f'Fehler beim Planen der Posts: {str(e)}')
-        flash(f'Fehler beim Planen der Posts: {str(e)}', 'error')
-        return redirect(url_for('scheduler'))
-
-@app.route('/schedule_post', methods=['POST'])
-def schedule_post():
-    try:
-        logger.debug('Received schedule_post request')
-        logger.debug(f'Form data: {request.form}')
-        logger.debug(f'Files: {request.files}')
-        
-        if 'image' not in request.files:
-            flash('Kein Bild hochgeladen', 'error')
-            return redirect(url_for('scheduler'))
-
-        file = request.files['image']
-        if file.filename == '':
-            flash('Keine Datei ausgewählt', 'error')
-            return redirect(url_for('scheduler'))
-
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            logger.debug(f'Saving image to: {filepath}')
-            file.save(filepath)
-            
-            if 'user_info' not in session:
-                session['user_info'] = FAKE_PROFILE.copy()
-            user_info = session['user_info']
-            
-            # Initialisiere media Dictionary falls es noch nicht existiert
-            if 'media' not in user_info:
-                user_info['media'] = {'data': []}
-            
-            caption = request.form.get('caption', '')
-            schedule_time = request.form.get('schedule')
-            
-            # Validate schedule time
-            is_valid, error_msg = validate_schedule_time(schedule_time)
-            if not is_valid:
-                flash(error_msg, 'error')
+                flash('Ungültiger Dateityp', 'error')
                 return redirect(url_for('scheduler'))
-            
-            new_post = {
-                'id': str(len(user_info['media']['data']) + 1),
-                'caption': caption,
-                'media_type': 'IMAGE',
-                'media_url': url_for('static', filename=f'uploads/{filename}'),
-                'thumbnail_url': url_for('static', filename=f'uploads/{filename}'),
-                'permalink': '#',
-                'timestamp': schedule_time
-            }
-            
-            user_info['media']['data'].append(new_post)
-            user_info['media_count'] = len(user_info['media']['data'])
-            session['user_info'] = user_info
-            logger.debug('Post added to user_info')
-
-            flash('Beitrag erfolgreich geplant!', 'success')
-            return redirect(url_for('dashboard'))
-
-        flash('Ungültiger Dateityp', 'error')
-        return redirect(url_for('scheduler'))
-        
-    except Exception as e:
-        logger.error(f'Error in schedule_post: {str(e)}', exc_info=True)
-        flash(f'Fehler beim Planen des Beitrags: {str(e)}', 'error')
-        return redirect(url_for('scheduler'))
+                
+            except Exception as e:
+                logger.error(f'Error in schedule_post: {str(e)}', exc_info=True)
+                flash(f'Fehler beim Planen des Beitrags: {str(e)}', 'error')
+                return redirect(url_for('scheduler'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -545,33 +621,74 @@ def targeting():
 @app.route('/api/generate-content', methods=['POST'])
 @login_required
 def generate_content():
+    if not HUGGINGFACE_API_KEY:
+        app.logger.error("Hugging Face API key is missing")
+        return jsonify({'error': 'Hugging Face API key is not configured'}), 500
+    
     try:
         data = request.json
-        app.logger.info(f"Received data: {data}")
+        app.logger.info(f"Received content generation request: {data}")
         
-        # Validate required fields
         required_fields = ['contentType', 'tone', 'interests', 'ageRange']
         if not all(field in data for field in required_fields):
-            return jsonify({'error': 'Missing required fields'}), 400
+            missing_fields = [field for field in required_fields if field not in data]
+            app.logger.error(f"Missing required fields: {missing_fields}")
+            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
+        
+        try:
+            # Generate image prompt
+            app.logger.info("Generating image prompt...")
+            image_prompt = generate_image_prompt(data)
+            app.logger.info(f"Generated image prompt: {image_prompt}")
             
-        # Generate image based on content type and interests
-        prompt = f"Create a {data['contentType']} image that appeals to {data['ageRange']} year olds interested in {', '.join(data['interests'])}. Style: {data['tone']}"
-        image_url = generate_image_with_stable_diffusion(prompt)
-        app.logger.info("Successfully generated image")
-        
-        # Generate text content
-        content = generate_text_content(data)
-        app.logger.info("Successfully generated text content")
-        
-        return jsonify({
-            'imageUrl': image_url,
-            'caption': content['caption'],
-            'hashtags': content['hashtags']
-        })
-        
+            # Generate image
+            app.logger.info("Generating image with Stable Diffusion...")
+            image_url = generate_image_with_stable_diffusion(image_prompt)
+            app.logger.info("Successfully generated image")
+            
+            # Generate caption and hashtags
+            app.logger.info("Generating text content...")
+            content = generate_text_content(data)
+            app.logger.info("Successfully generated text content")
+            
+            # Schedule the post automatically
+            schedule_data = {
+                'imageUrl': image_url,
+                'caption': content['caption'],
+                'hashtags': content['hashtags']
+            }
+            
+            # Calculate optimal posting time
+            optimal_time = calculate_optimal_posting_time(session.get('user_id'))
+            
+            # Create scheduled post
+            post = ScheduledPost(
+                image_url=image_url,
+                caption=content['caption'],
+                hashtags=json.dumps(content['hashtags']),
+                scheduled_time=optimal_time,
+                user_id=session.get('user_id')
+            )
+            
+            db.session.add(post)
+            db.session.commit()
+            
+            return jsonify({
+                'imageUrl': image_url,
+                'caption': content['caption'],
+                'hashtags': content['hashtags'],
+                'scheduledTime': optimal_time.isoformat(),
+                'postId': post.id,
+                'message': 'Content generated and scheduled successfully'
+            })
+            
+        except Exception as e:
+            app.logger.error(f"Error during content generation: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+            
     except Exception as e:
-        app.logger.error(f"Error generating content: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error processing request: {str(e)}")
+        return jsonify({'error': f'Invalid request format: {str(e)}'}), 400
 
 def generate_image_prompt(data):
     """Generate image prompt using Zephyr"""
