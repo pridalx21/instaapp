@@ -78,13 +78,6 @@
 <body>
     <div id="fb-root"></div>
     <script>
-        // Generate random state parameter
-        function generateState() {
-            const array = new Uint32Array(8);
-            window.crypto.getRandomValues(array);
-            return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
-        }
-
         window.fbAsyncInit = function() {
             FB.init({
                 appId: '1558999001389004',
@@ -104,26 +97,13 @@
         }(document, 'script', 'facebook-jssdk'));
 
         function loginWithFacebook() {
-            const state = generateState();
-            sessionStorage.setItem('fb_state', state);
-            
             FB.login(function(response) {
                 if (response.status === 'connected') {
-                    // Verify state parameter before redirecting
-                    const returnedState = new URLSearchParams(window.location.search).get('state');
-                    const savedState = sessionStorage.getItem('fb_state');
-                    
-                    if (returnedState && savedState && returnedState === savedState) {
-                        window.location.href = '/auth/facebook/callback?access_token=' + 
-                            response.authResponse.accessToken + 
-                            '&state=' + state;
-                    } else {
-                        console.error('State parameter mismatch');
-                        alert('Sicherheitsfehler: Ungültiger State-Parameter');
-                    }
+                    // Direkte Weiterleitung zum Callback
+                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
                 }
             }, {
-                scope: 'instagram_basic,instagram_content_publish,pages_show_list',
+                scope: 'instagram_basic',
                 auth_type: 'rerequest',
                 return_scopes: true
             });
