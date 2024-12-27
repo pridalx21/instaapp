@@ -186,15 +186,53 @@ def login_required(f):
 # Hugging Face API Configuration
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
 HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/"
-TEXT_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"  # Für Text-Generierung
-IMAGE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"  # Für Bild-Generierung
+TEXT_MODEL = "HuggingFaceH4/zephyr-7b-beta"  # Besseres Modell für Text-Generierung
+IMAGE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 
 headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
 
 def query_huggingface(payload, model):
     """Generic function to query Hugging Face API"""
-    response = requests.post(f"{HUGGINGFACE_API_URL}{model}", headers=headers, json=payload)
-    return response.json()
+    try:
+        response = requests.post(
+            f"{HUGGINGFACE_API_URL}{model}",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()  # Raise an exception for bad status codes
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Error querying Hugging Face API: {str(e)}")
+        raise Exception(f"API request failed: {str(e)}")
+
+def generate_image_with_stable_diffusion(prompt):
+    """Generate image using Stable Diffusion"""
+    try:
+        response = requests.post(
+            f"{HUGGINGFACE_API_URL}{IMAGE_MODEL}",
+            headers=headers,
+            json={
+                "inputs": prompt,
+                "parameters": {
+                    "negative_prompt": "blurry, bad quality, distorted, ugly, deformed",
+                    "num_inference_steps": 30,
+                    "guidance_scale": 7.5
+                }
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        # Die API gibt die Bilddaten direkt als Bytes zurück
+        image_bytes = response.content
+        
+        # Konvertiere zu Base64
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        return f"data:image/jpeg;base64,{image_base64}"
+    except Exception as e:
+        app.logger.error(f"Error generating image: {str(e)}")
+        raise
 
 @app.route('/generate_post', methods=['GET', 'POST'])
 def generate_post_function():
@@ -516,8 +554,6 @@ def generate_content():
         app.logger.info(f"Received content generation request: {data}")
         
         required_fields = ['contentType', 'tone', 'interests', 'ageRange']
-        
-        # Validate required fields
         if not all(field in data for field in required_fields):
             missing_fields = [field for field in required_fields if field not in data]
             app.logger.error(f"Missing required fields: {missing_fields}")
@@ -529,24 +565,9 @@ def generate_content():
             image_prompt = generate_image_prompt(data)
             app.logger.info(f"Generated image prompt: {image_prompt}")
             
-            # Generate image using Stable Diffusion
-            app.logger.info("Calling Stable Diffusion API...")
-            image_payload = {
-                "inputs": image_prompt,
-                "parameters": {
-                    "negative_prompt": "blurry, bad quality, distorted",
-                    "num_inference_steps": 50,
-                    "guidance_scale": 7.5
-                }
-            }
-            image_response = query_huggingface(image_payload, IMAGE_MODEL)
-            
-            if isinstance(image_response, dict) and 'error' in image_response:
-                raise Exception(image_response['error'])
-            
-            # Convert image to base64
-            image_data = base64.b64encode(image_response).decode('utf-8')
-            image_url = f"data:image/jpeg;base64,{image_data}"
+            # Generate image
+            app.logger.info("Generating image with Stable Diffusion...")
+            image_url = generate_image_with_stable_diffusion(image_prompt)
             app.logger.info("Successfully generated image")
             
             # Generate caption and hashtags
@@ -562,48 +583,56 @@ def generate_content():
             
         except Exception as e:
             app.logger.error(f"Error during content generation: {str(e)}")
-            return jsonify({'error': f'Content generation failed: {str(e)}'}), 500
+            return jsonify({'error': str(e)}), 500
             
     except Exception as e:
         app.logger.error(f"Error processing request: {str(e)}")
         return jsonify({'error': f'Invalid request format: {str(e)}'}), 400
 
 def generate_image_prompt(data):
-    """Generate image prompt using Mistral"""
-    prompt_template = f"""Create an engaging Instagram-worthy image prompt for a {data['contentType']} post.
+    """Generate image prompt using Zephyr"""
+    system_prompt = """You are an expert at creating detailed image generation prompts that result in high-quality, 
+    Instagram-worthy images. Create a prompt that will generate a visually striking and professional image."""
+    
+    user_prompt = f"""Create a detailed image generation prompt for a {data['contentType']} post.
     Target audience: {data['ageRange']} year olds
     Interests: {', '.join(data['interests'])}
     Tone: {data['tone']}
     
-    Requirements:
-    - The image should be visually striking and attention-grabbing
-    - Ensure good composition and lighting
-    - Make it suitable for Instagram's square format
-    - Keep it authentic and relatable
-    - Include relevant visual elements that appeal to the target audience
+    The image should be:
+    - Visually striking and attention-grabbing
+    - Well-composed with good lighting
+    - Suitable for Instagram's square format
+    - Authentic and relatable
+    - Professional quality
     
     Provide only the image generation prompt, nothing else."""
     
-    payload = {
-        "inputs": prompt_template,
-        "parameters": {
-            "max_new_tokens": 100,
-            "temperature": 0.7,
-            "top_p": 0.95,
-            "do_sample": True
-        }
-    }
-    
-    response = query_huggingface(payload, TEXT_MODEL)
-    
-    if isinstance(response, dict) and 'error' in response:
-        raise Exception(response['error'])
+    try:
+        response = query_huggingface({
+            "inputs": f"{system_prompt}\n\nUser: {user_prompt}\n\nAssistant:",
+            "parameters": {
+                "max_new_tokens": 100,
+                "temperature": 0.7,
+                "top_p": 0.95,
+                "return_full_text": False
+            }
+        }, TEXT_MODEL)
         
-    return response[0]['generated_text'].strip()
+        # Clean up the response
+        prompt = response[0]['generated_text'].strip()
+        return prompt
+        
+    except Exception as e:
+        app.logger.error(f"Error generating image prompt: {str(e)}")
+        raise
 
 def generate_text_content(data):
-    """Generate caption and hashtags using Mistral"""
-    prompt = f"""Create an Instagram post caption and hashtags for a {data['contentType']} post.
+    """Generate caption and hashtags using Zephyr"""
+    system_prompt = """You are an expert Instagram content creator who writes engaging captions and selects trending hashtags.
+    Your responses should be in valid JSON format with 'caption' and 'hashtags' fields."""
+    
+    user_prompt = f"""Create an Instagram post caption and hashtags for a {data['contentType']} post.
     
     Target Audience:
     - Age Range: {data['ageRange']}
@@ -615,43 +644,53 @@ def generate_text_content(data):
     2. Include emojis where appropriate
     3. Use line breaks for readability
     4. Include a call-to-action
-    5. Generate 15-20 relevant hashtags
+    5. Generate 10-15 relevant hashtags
     
-    Format the response as JSON with two fields:
-    1. caption: The main post text (including emojis and line breaks)
-    2. hashtags: An array of relevant hashtags (without the # symbol)"""
-    
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 250,
-            "temperature": 0.7,
-            "top_p": 0.95,
-            "do_sample": True,
-            "return_full_text": False
-        }
-    }
-    
-    response = query_huggingface(payload, TEXT_MODEL)
-    
-    if isinstance(response, dict) and 'error' in response:
-        raise Exception(response['error'])
+    Format the response as JSON:
+    {{
+        "caption": "Your caption here",
+        "hashtags": ["hashtag1", "hashtag2"]
+    }}"""
     
     try:
+        response = query_huggingface({
+            "inputs": f"{system_prompt}\n\nUser: {user_prompt}\n\nAssistant:",
+            "parameters": {
+                "max_new_tokens": 250,
+                "temperature": 0.7,
+                "top_p": 0.95,
+                "return_full_text": False
+            }
+        }, TEXT_MODEL)
+        
         # Extract JSON from the response
         response_text = response[0]['generated_text']
-        # Find the JSON part of the response
+        
+        # Find JSON in the response
         json_start = response_text.find('{')
         json_end = response_text.rfind('}') + 1
+        
+        if json_start == -1 or json_end == 0:
+            # Fallback wenn kein JSON gefunden wurde
+            return {
+                'caption': response_text.strip(),
+                'hashtags': []
+            }
+            
         json_str = response_text[json_start:json_end]
-        return json.loads(json_str)
+        
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            # Fallback wenn JSON ungültig ist
+            return {
+                'caption': response_text.strip(),
+                'hashtags': []
+            }
+            
     except Exception as e:
-        app.logger.error(f"Error parsing text generation response: {str(e)}")
-        # Fallback response if JSON parsing fails
-        return {
-            'caption': response[0]['generated_text'].strip(),
-            'hashtags': []
-        }
+        app.logger.error(f"Error generating text content: {str(e)}")
+        raise
 
 if __name__ == '__main__':
     # Use production server when deployed
