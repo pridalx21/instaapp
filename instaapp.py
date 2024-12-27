@@ -291,7 +291,7 @@ def calculate_optimal_posting_time(user_id):
 
 @app.route('/api/schedule-post', methods=['POST'])
 @login_required
-def schedule_post():
+def api_schedule_post():
     try:
         data = request.json
         
@@ -432,106 +432,74 @@ def schedule_posts():
             flash('Bitte melden Sie sich zuerst an', 'error')
             return redirect(url_for('index'))
 
-        # Ensure upload directory exists
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-        captions = request.form.getlist('captions[]')
-        schedules = request.form.getlist('schedules[]')
-        post_types = request.form.getlist('post_types[]')
-        post_formats = request.form.getlist('post_formats[]')
+        captions = request.form.getlist('caption[]')
+        schedules = request.form.getlist('schedule[]')
+        post_types = request.form.getlist('post_type[]')
+        post_formats = request.form.getlist('post_format[]')
         media_files = request.files.getlist('media[]')
         audio_files = request.files.getlist('audio[]')
-
+        
         if not all([captions, schedules, post_types, post_formats, media_files]):
             flash('Bitte füllen Sie alle erforderlichen Felder aus', 'error')
             return redirect(url_for('scheduler'))
-
-        if len(captions) != len(schedules) or len(captions) != len(media_files) or len(captions) != len(post_types):
-            flash('Ungültige Anzahl von Medien, Bildunterschriften oder Zeitpunkten', 'error')
-            return redirect(url_for('scheduler'))
-
-        user_info = session.get('user_info', FAKE_PROFILE.copy())
+            
+        successful_posts = 0
+        user_info = session['user_info']
+        
+        # Initialisiere media Dictionary falls es noch nicht existiert
         if 'media' not in user_info:
             user_info['media'] = {'data': []}
-
-        successful_posts = 0
+            
         for caption, schedule, post_type, post_format, media_file, audio_file in zip(captions, schedules, post_types, post_formats, media_files, audio_files):
             try:
                 # Validate schedule time
-                schedule_dt = datetime.fromisoformat(schedule)
-                now = datetime.now()
-                if schedule_dt <= now:
-                    flash(f'Zeitpunkt muss in der Zukunft liegen: {schedule}', 'error')
+                is_valid, error_msg = validate_schedule_time(schedule)
+                if not is_valid:
+                    flash(error_msg, 'error')
                     continue
-
-                # Validate post format and media type combination
-                if post_format not in POST_FORMATS:
-                    flash(f'Ungültiges Post-Format: {post_format}', 'error')
-                    continue
-
-                format_config = POST_FORMATS[post_format]
-                if post_type not in format_config['allowed_media']:
-                    flash(f'{format_config["name"]} unterstützt keine {post_type}-Dateien', 'error')
-                    continue
-
+                
                 # Validate and save media file
                 if not media_file or not allowed_file(media_file.filename, post_type):
-                    allowed_types = {
-                        'image': ', '.join(ALLOWED_IMAGE_EXTENSIONS),
-                        'video': ', '.join(ALLOWED_VIDEO_EXTENSIONS)
-                    }
-                    flash(f'Ungültiges Dateiformat für {post_type}. Erlaubte Formate: {allowed_types.get(post_type)}', 'error')
+                    flash(f'Ungültiges Medienformat für {media_file.filename if media_file else "unbekannte Datei"}', 'error')
                     continue
-
-                # Save media file
-                if media_file and media_file.filename:
-                    media_filename = secure_filename(media_file.filename)
-                    media_filepath = os.path.join(app.config['UPLOAD_FOLDER'], media_filename)
-                    logger.debug(f'Saving image to: {filepath}')
-                    media_file.save(media_filepath)
-                    
-                    if 'user_info' not in session:
-                        session['user_info'] = FAKE_PROFILE.copy()
-                    user_info = session['user_info']
-                    
-                    # Initialisiere media Dictionary falls es noch nicht existiert
-                    if 'media' not in user_info:
-                        user_info['media'] = {'data': []}
-                    
-                    caption = request.form.get('caption', '')
-                    schedule_time = request.form.get('schedule')
-                    
-                    # Validate schedule time
-                    is_valid, error_msg = validate_schedule_time(schedule_time)
-                    if not is_valid:
-                        flash(error_msg, 'error')
-                        return redirect(url_for('scheduler'))
-                    
-                    new_post = {
-                        'id': str(len(user_info['media']['data']) + 1),
-                        'caption': caption,
-                        'media_type': 'IMAGE',
-                        'media_url': url_for('static', filename=f'uploads/{filename}'),
-                        'thumbnail_url': url_for('static', filename=f'uploads/{filename}'),
-                        'permalink': '#',
-                        'timestamp': schedule_time
-                    }
-                    
-                    user_info['media']['data'].append(new_post)
-                    user_info['media_count'] = len(user_info['media']['data'])
-                    session['user_info'] = user_info
-                    logger.debug('Post added to user_info')
-
-                    flash('Beitrag erfolgreich geplant!', 'success')
-                    return redirect(url_for('dashboard'))
-
-                flash('Ungültiger Dateityp', 'error')
-                return redirect(url_for('scheduler'))
+                
+                media_filename = secure_filename(media_file.filename)
+                media_filepath = os.path.join(app.config['UPLOAD_FOLDER'], media_filename)
+                media_file.save(media_filepath)
+                
+                # Create new post
+                new_post = {
+                    'id': str(len(user_info['media']['data']) + 1),
+                    'caption': caption,
+                    'media_type': post_type.upper(),
+                    'post_format': post_format,
+                    'media_url': url_for('static', filename=f'uploads/{media_filename}'),
+                    'thumbnail_url': url_for('static', filename=f'uploads/{media_filename}'),
+                    'permalink': '#',
+                    'timestamp': schedule
+                }
+                
+                user_info['media']['data'].append(new_post)
+                successful_posts += 1
                 
             except Exception as e:
-                logger.error(f'Error in schedule_post: {str(e)}', exc_info=True)
-                flash(f'Fehler beim Planen des Beitrags: {str(e)}', 'error')
-                return redirect(url_for('scheduler'))
+                logger.error(f'Error processing post: {str(e)}')
+                flash(f'Error processing post: {str(e)}', 'error')
+                continue
+                
+        if successful_posts > 0:
+            user_info['media_count'] = len(user_info['media']['data'])
+            session['user_info'] = user_info
+            flash(f'{successful_posts} posts scheduled successfully', 'success')
+        else:
+            flash('No posts could be scheduled', 'error')
+            
+        return redirect(url_for('dashboard'))
+        
+    except Exception as e:
+        logger.error(f'Error scheduling posts: {str(e)}')
+        flash(f'Error scheduling posts: {str(e)}', 'error')
+        return redirect(url_for('scheduler'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -541,18 +509,17 @@ def login():
         
         if not username or not password:
             flash('Username and password are required', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('login'))
             
         # For demo purposes, using fake profile
-        # In production, this should validate against a secure database
         if username == 'test_user':
             session['user_info'] = FAKE_PROFILE.copy()
             flash('Successfully logged in', 'success')
             return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid credentials', 'error')
-            return redirect(url_for('index'))
             
+        flash('Invalid credentials', 'error')
+        return redirect(url_for('login'))
+        
     return render_template('login.html')
 
 @app.route('/logout')
@@ -792,6 +759,72 @@ def generate_text_content(data):
     except Exception as e:
         app.logger.error(f"Error generating text content: {str(e)}")
         raise
+
+@app.route('/schedule_post', methods=['POST'])
+@login_required
+def schedule_post():
+    try:
+        logger.debug('Received schedule_post request')
+        logger.debug(f'Form data: {request.form}')
+        logger.debug(f'Files: {request.files}')
+        
+        if 'image' not in request.files:
+            flash('Kein Bild hochgeladen', 'error')
+            return redirect(url_for('scheduler'))
+
+        file = request.files['image']
+        if file.filename == '':
+            flash('Keine Datei ausgewählt', 'error')
+            return redirect(url_for('scheduler'))
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            logger.debug(f'Saving image to: {filepath}')
+            file.save(filepath)
+            
+            if 'user_info' not in session:
+                session['user_info'] = FAKE_PROFILE.copy()
+            user_info = session['user_info']
+            
+            # Initialisiere media Dictionary falls es noch nicht existiert
+            if 'media' not in user_info:
+                user_info['media'] = {'data': []}
+            
+            caption = request.form.get('caption', '')
+            schedule_time = request.form.get('schedule')
+            
+            # Validate schedule time
+            is_valid, error_msg = validate_schedule_time(schedule_time)
+            if not is_valid:
+                flash(error_msg, 'error')
+                return redirect(url_for('scheduler'))
+            
+            new_post = {
+                'id': str(len(user_info['media']['data']) + 1),
+                'caption': caption,
+                'media_type': 'IMAGE',
+                'media_url': url_for('static', filename=f'uploads/{filename}'),
+                'thumbnail_url': url_for('static', filename=f'uploads/{filename}'),
+                'permalink': '#',
+                'timestamp': schedule_time
+            }
+            
+            user_info['media']['data'].append(new_post)
+            user_info['media_count'] = len(user_info['media']['data'])
+            session['user_info'] = user_info
+            logger.debug('Post added to user_info')
+
+            flash('Beitrag erfolgreich geplant!', 'success')
+            return redirect(url_for('dashboard'))
+
+        flash('Ungültiger Dateityp', 'error')
+        return redirect(url_for('scheduler'))
+        
+    except Exception as e:
+        logger.error(f'Error in schedule_post: {str(e)}', exc_info=True)
+        flash(f'Fehler beim Planen des Beitrags: {str(e)}', 'error')
+        return redirect(url_for('scheduler'))
 
 if __name__ == '__main__':
     # Use production server when deployed
