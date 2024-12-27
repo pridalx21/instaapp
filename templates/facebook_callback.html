@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weiterleitung...</title>
+    <title>Facebook Callback</title>
     <script>
-        window.onload = function() {
-            // Weiterleitung zum Dashboard
-            window.location.href = '/dashboard';
-        }
+        // Schließe das Facebook-Fenster nach erfolgreicher Anmeldung
+        window.close();
+        // Weiterleitung zum Dashboard
+        window.location.href = '/dashboard';
     </script>
 </head>
 <body>
-    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif;">
-        <p>Sie werden weitergeleitet...</p>
-    </div>
+    <p>Bitte warten...</p>
 </body>
 </html>
