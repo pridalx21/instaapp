@@ -238,6 +238,17 @@ def generate_image_with_stable_diffusion(prompt):
         app.logger.error(f"Error generating image: {str(e)}")
         raise
 
+# Database Models
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    posts = db.relationship('Post', backref='author', lazy=True)
+
+    def __init__(self, username, email):
+        self.username = username
+        self.email = email
+
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -313,7 +324,7 @@ def calculate_optimal_posting_time(target_age, interests):
 
 @app.route('/api/schedule-post', methods=['POST'])
 @login_required
-def schedule_post():
+def api_schedule_post():
     try:
         data = request.json
         
