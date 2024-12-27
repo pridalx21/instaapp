@@ -1,104 +1,255 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+    :root {
+        --primary-color: #6c5ce7;
+        --accent-color: #7a5af8;
+        --border-color: #e0e0e0;
+        --gradient: linear-gradient(90deg, #6c5ce7, #7a5af8);
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+
+    .page-header {
+        text-align: center;
+        margin-bottom: 50px;
+    }
+
+    .page-title {
+        font-size: 36px;
+        font-weight: bold;
+        background: var(--gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 15px;
+    }
+
+    .page-subtitle {
+        color: #666;
+        font-size: 18px;
+    }
+
+    .card {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 4px 20px rgba(108, 92, 231, 0.1);
+        transition: all 0.3s ease;
+        border: none;
+        margin-bottom: 30px;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 30px rgba(108, 92, 231, 0.2);
+    }
+
+    .card-title {
+        color: var(--primary-color);
+        font-size: 24px;
+        margin-bottom: 25px;
+    }
+
+    .form-label {
+        color: #444;
+        font-weight: 500;
+        margin-bottom: 8px;
+    }
+
+    .form-control, .form-select {
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        padding: 12px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+    }
+
+    .form-check {
+        margin-bottom: 10px;
+    }
+
+    .form-check-input:checked {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .btn {
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+        background: var(--gradient);
+        border: none;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+    }
+
+    .btn-success {
+        background: linear-gradient(90deg, #2ecc71, #27ae60);
+        border: none;
+    }
+
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+    }
+
+    .badge {
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        background: #f8f9fa;
+        color: #666;
+        margin: 5px;
+        transition: all 0.3s ease;
+    }
+
+    .badge:hover {
+        background: var(--gradient);
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    #generatedImage {
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        color: var(--primary-color);
+    }
+
+    .alert {
+        border-radius: 10px;
+        border: none;
+        padding: 15px 20px;
+    }
+
+    .alert-danger {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title">Targeting & KI Content</h1>
+        <p class="page-subtitle">Definiere deine Zielgruppe und erstelle automatisch passenden Content</p>
+    </div>
+
     <div class="row">
         <!-- Linke Spalte: Zielgruppen-Formular -->
         <div class="col-md-4">
             <div class="card">
-                <div class="card-body">
-                    <h2 class="card-title h4 mb-4">Zielgruppe definieren</h2>
-                    <form id="targetingForm">
-                        <div class="mb-3">
-                            <label for="ageRange" class="form-label">Altersgruppe</label>
-                            <input type="text" class="form-control" id="ageRange" name="ageRange" value="13-17 Jahre" required>
-                        </div>
+                <h2 class="card-title">Zielgruppe definieren</h2>
+                <form id="targetingForm">
+                    <div class="mb-3">
+                        <label for="ageRange" class="form-label">Altersgruppe</label>
+                        <input type="text" class="form-control" id="ageRange" name="ageRange" value="13-17 Jahre" required>
+                    </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Interessen (max. 3)</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="interests" value="Mode & Beauty" id="mode">
-                                <label class="form-check-label" for="mode">Mode & Beauty</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="interests" value="Fitness & Gesundheit" id="fitness">
-                                <label class="form-check-label" for="fitness">Fitness & Gesundheit</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="interests" value="Reisen & Abenteuer" id="reisen">
-                                <label class="form-check-label" for="reisen">Reisen & Abenteuer</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="interests" value="Essen & Kochen" id="essen">
-                                <label class="form-check-label" for="essen">Essen & Kochen</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="interests" value="Technologie" id="tech">
-                                <label class="form-check-label" for="tech">Technologie</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="interests" value="Business" id="business">
-                                <label class="form-check-label" for="business">Business</label>
-                            </div>
+                    <div class="mb-3">
+                        <label class="form-label">Interessen (max. 3)</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="interests" value="Mode & Beauty" id="mode">
+                            <label class="form-check-label" for="mode">Mode & Beauty</label>
                         </div>
-
-                        <div class="mb-3">
-                            <label for="contentType" class="form-label">Content-Typ</label>
-                            <select class="form-select" id="contentType" name="contentType" required>
-                                <option value="Inspiration">Inspiration</option>
-                                <option value="Education">Education</option>
-                                <option value="Entertainment">Entertainment</option>
-                                <option value="Product">Product</option>
-                            </select>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="interests" value="Fitness & Gesundheit" id="fitness">
+                            <label class="form-check-label" for="fitness">Fitness & Gesundheit</label>
                         </div>
-
-                        <div class="mb-3">
-                            <label for="tone" class="form-label">Tonalität</label>
-                            <select class="form-select" id="tone" name="tone" required>
-                                <option value="Motivierend">Motivierend</option>
-                                <option value="Professionell">Professionell</option>
-                                <option value="Casual">Casual</option>
-                                <option value="Humorvoll">Humorvoll</option>
-                            </select>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="interests" value="Reisen & Abenteuer" id="reisen">
+                            <label class="form-check-label" for="reisen">Reisen & Abenteuer</label>
                         </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="interests" value="Essen & Kochen" id="essen">
+                            <label class="form-check-label" for="essen">Essen & Kochen</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="interests" value="Technologie" id="tech">
+                            <label class="form-check-label" for="tech">Technologie</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="interests" value="Business" id="business">
+                            <label class="form-check-label" for="business">Business</label>
+                        </div>
+                    </div>
 
-                        <button type="submit" class="btn btn-primary w-100" id="generateBtn">
-                            <i class="fas fa-magic me-2"></i>KI Content generieren
-                        </button>
-                    </form>
-                </div>
+                    <div class="mb-3">
+                        <label for="contentType" class="form-label">Content-Typ</label>
+                        <select class="form-select" id="contentType" name="contentType" required>
+                            <option value="Inspiration">Inspiration</option>
+                            <option value="Education">Education</option>
+                            <option value="Entertainment">Entertainment</option>
+                            <option value="Product">Product</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="tone" class="form-label">Tonalität</label>
+                        <select class="form-select" id="tone" name="tone" required>
+                            <option value="Motivierend">Motivierend</option>
+                            <option value="Professionell">Professionell</option>
+                            <option value="Casual">Casual</option>
+                            <option value="Humorvoll">Humorvoll</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="generateBtn">
+                        <i class="fas fa-magic me-2"></i>KI Content generieren
+                    </button>
+                </form>
             </div>
         </div>
 
         <!-- Rechte Spalte: Generierter Content -->
         <div class="col-md-8">
             <div id="generatedContent" class="card">
-                <div class="card-body">
-                    <h2 class="card-title h4 mb-4">Generierter Content</h2>
-                    <div id="loadingSpinner" class="text-center d-none">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2">Generiere Content...</p>
+                <h2 class="card-title">Generierter Content</h2>
+                <div id="loadingSpinner" class="text-center d-none">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
-                    <div id="contentDisplay" class="d-none">
-                        <div class="mb-4">
-                            <img id="generatedImage" src="" alt="Generated Image" class="img-fluid rounded mb-3">
-                        </div>
-                        <div class="mb-4">
-                            <h3 class="h5 mb-2">Caption</h3>
-                            <p id="generatedCaption" class="mb-3"></p>
-                        </div>
-                        <div class="mb-4">
-                            <h3 class="h5 mb-2">Hashtags</h3>
-                            <div id="generatedHashtags" class="d-flex flex-wrap gap-2"></div>
-                        </div>
-                        <button class="btn btn-success w-100" onclick="window.location.href='/scheduler'">
-                            <i class="far fa-calendar-alt me-2"></i>Post planen
-                        </button>
-                    </div>
-                    <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+                    <p class="mt-2">Generiere Content...</p>
                 </div>
+                <div id="contentDisplay" class="d-none">
+                    <div class="mb-4">
+                        <img id="generatedImage" src="" alt="Generated Image" class="img-fluid rounded mb-3">
+                    </div>
+                    <div class="mb-4">
+                        <h3 class="h5 mb-2">Caption</h3>
+                        <p id="generatedCaption" class="mb-3"></p>
+                    </div>
+                    <div class="mb-4">
+                        <h3 class="h5 mb-2">Hashtags</h3>
+                        <div id="generatedHashtags" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+                    <button class="btn btn-success w-100" onclick="window.location.href='/scheduler'">
+                        <i class="far fa-calendar-alt me-2"></i>Post planen
+                    </button>
+                </div>
+                <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
             </div>
         </div>
     </div>
