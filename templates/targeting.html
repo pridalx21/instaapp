@@ -197,6 +197,84 @@
             margin-bottom: 10px;
         }
     }
+
+    .loader {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 200px;
+    }
+
+    .content-placeholder {
+        height: 20px;
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        width: 100%;
+    }
+
+    .content-placeholder.short {
+        width: 60%;
+    }
+
+    @keyframes loading {
+        0% {
+            background-position: 200% 0;
+        }
+        100% {
+            background-position: -200% 0;
+        }
+    }
+
+    .preview-image {
+        position: relative;
+        min-height: 300px;
+        background: var(--bg-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    #generatedImage {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: opacity 0.3s ease;
+    }
+
+    #generatedImage.loading {
+        opacity: 0.5;
+    }
+
+    .generate-status {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border-radius: 30px;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -208,7 +286,7 @@
     </div>
 
     <div class="row">
-        <div class="col-lg-6 mx-auto">
+        <div class="col-lg-6">
             <div class="card">
                 <form id="contentForm">
                     <div class="form-group">
@@ -265,7 +343,9 @@
                     </button>
                 </form>
             </div>
+        </div>
 
+        <div class="col-lg-6">
             <div id="postPreview" class="card d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3 class="mb-0">Post Preview</h3>
@@ -273,13 +353,25 @@
                 </div>
 
                 <div class="preview-image">
+                    <div id="imageLoader" class="loader d-none">
+                        <div class="spinner-grow text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
                     <img id="generatedImage" class="img-fluid" alt="Generated image">
                 </div>
 
                 <div class="mb-4">
-                    <h5 class="mb-3">Caption</h5>
-                    <p id="generatedCaption" class="mb-3"></p>
-                    <div id="generatedHashtags" class="hashtags"></div>
+                    <div id="contentLoader" class="loader d-none">
+                        <div class="content-placeholder"></div>
+                        <div class="content-placeholder"></div>
+                        <div class="content-placeholder short"></div>
+                    </div>
+                    <div id="contentContainer">
+                        <h5 class="mb-3">Caption</h5>
+                        <p id="generatedCaption" class="mb-3"></p>
+                        <div id="generatedHashtags" class="hashtags"></div>
+                    </div>
                 </div>
 
                 <div id="schedulingInfo" class="alert alert-info d-none">
@@ -291,6 +383,11 @@
                     <i class="fas fa-check"></i> Approve Post
                 </button>
             </div>
+
+            <div id="generateError" class="alert alert-danger d-none">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="errorMessage"></span>
+            </div>
         </div>
     </div>
 </div>
@@ -300,8 +397,28 @@ document.getElementById('contentForm').addEventListener('submit', async function
     e.preventDefault();
     
     const generateBtn = document.getElementById('generateBtn');
+    const postPreview = document.getElementById('postPreview');
+    const imageLoader = document.getElementById('imageLoader');
+    const contentLoader = document.getElementById('contentLoader');
+    const contentContainer = document.getElementById('contentContainer');
+    const generateError = document.getElementById('generateError');
+    
+    // Reset state
+    generateError.classList.add('d-none');
     generateBtn.disabled = true;
     generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+    
+    // Show preview card with loaders
+    postPreview.classList.remove('d-none');
+    imageLoader.classList.remove('d-none');
+    contentLoader.classList.remove('d-none');
+    contentContainer.classList.add('d-none');
+    
+    // Show generating status
+    const status = document.createElement('div');
+    status.className = 'generate-status';
+    status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating your content...';
+    document.body.appendChild(status);
     
     try {
         const formData = {
@@ -322,16 +439,22 @@ document.getElementById('contentForm').addEventListener('submit', async function
         const data = await response.json();
         
         if (response.ok) {
-            // Show the preview with animation
-            const postPreview = document.getElementById('postPreview');
-            postPreview.classList.remove('d-none');
-            setTimeout(() => postPreview.classList.add('show'), 100);
-            
             // Update preview content
-            document.getElementById('generatedImage').src = data.imageUrl;
+            const img = document.getElementById('generatedImage');
+            img.classList.add('loading');
+            img.src = data.imageUrl;
+            img.onload = () => {
+                img.classList.remove('loading');
+                imageLoader.classList.add('d-none');
+            };
+            
             document.getElementById('generatedCaption').textContent = data.caption;
             document.getElementById('generatedHashtags').innerHTML = data.hashtags
                 .map(tag => `<span class="hashtag">#${tag}</span>`).join('');
+            
+            // Show content
+            contentLoader.classList.add('d-none');
+            contentContainer.classList.remove('d-none');
             
             // Show scheduling info
             const schedulingInfo = document.getElementById('schedulingInfo');
@@ -350,19 +473,22 @@ document.getElementById('contentForm').addEventListener('submit', async function
             throw new Error(data.error || 'Failed to generate content');
         }
     } catch (error) {
-        alert('Error: ' + error.message);
+        generateError.classList.remove('d-none');
+        document.getElementById('errorMessage').textContent = error.message;
+        postPreview.classList.add('d-none');
     } finally {
         generateBtn.disabled = false;
         generateBtn.innerHTML = 'Generate Content';
+        status.remove();
     }
 });
 
 async function approvePost(postId) {
+    const approveBtn = document.getElementById('approveBtn');
+    approveBtn.disabled = true;
+    approveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Approving...';
+    
     try {
-        const approveBtn = document.getElementById('approveBtn');
-        approveBtn.disabled = true;
-        approveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Approving...';
-        
         const response = await fetch(`/api/approve-post/${postId}`, {
             method: 'POST',
             headers: {
