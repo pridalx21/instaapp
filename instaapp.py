@@ -196,41 +196,74 @@ def generate_appsecret_proof(access_token):
     )
     return hmac_object.hexdigest(), timestamp
 
-@app.route('/auth/facebook/callback')
-def facebook_callback():
-    access_token = request.args.get('access_token')
-    if not access_token:
-        flash('Fehler bei der Authentifizierung', 'error')
-        return redirect(url_for('index'))
-    
-    # Generate appsecret_proof
-    appsecret_proof, timestamp = generate_appsecret_proof(access_token)
-    
-    # Get user info with appsecret_proof
+@app.route('/auth/facebook')
+def facebook_login():
+    # Facebook Login URL mit den erforderlichen Berechtigungen
+    fb_login_url = "https://www.facebook.com/v18.0/dialog/oauth"
     params = {
-        'access_token': access_token,
-        'appsecret_proof': appsecret_proof,
-        'appsecret_time': timestamp,
-        'fields': 'id,name,accounts{instagram_business_account}'
+        'client_id': os.getenv('FACEBOOK_APP_ID'),
+        'redirect_uri': os.getenv('FACEBOOK_REDIRECT_URI', 'https://instaapp.onrender.com/auth/facebook/callback'),
+        'scope': 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+        'response_type': 'code'
     }
     
-    response = requests.get('https://graph.facebook.com/v18.0/me', params=params)
-    if response.status_code != 200:
-        flash('Fehler beim Abrufen der Benutzerinformationen', 'error')
-        return redirect(url_for('index'))
+    # Erstelle die vollständige Auth URL
+    full_auth_url = f"{fb_login_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+    return redirect(full_auth_url)
 
-    user_data = response.json()
-    session['user_id'] = user_data.get('id')
-    session['access_token'] = access_token
+@app.route('/auth/facebook/callback')
+def facebook_callback():
+    # Hole den Auth Code aus den URL-Parametern
+    code = request.args.get('code')
+    if not code:
+        flash('Fehler bei der Authentifizierung: Kein Code erhalten', 'error')
+        return redirect(url_for('index'))
     
-    # Get Instagram business account
-    accounts_data = user_data.get('accounts', {}).get('data', [])
-    for account in accounts_data:
-        if account.get('instagram_business_account'):
-            session['instagram_business_account_id'] = account['instagram_business_account']['id']
-            break
-    
-    return render_template('facebook_callback.html')
+    # Tausche den Code gegen ein Access Token
+    try:
+        token_url = 'https://graph.facebook.com/v18.0/oauth/access_token'
+        token_params = {
+            'client_id': os.getenv('FACEBOOK_APP_ID'),
+            'client_secret': os.getenv('FACEBOOK_APP_SECRET'),
+            'redirect_uri': os.getenv('FACEBOOK_REDIRECT_URI', 'https://instaapp.onrender.com/auth/facebook/callback'),
+            'code': code
+        }
+        
+        response = requests.get(token_url, params=token_params)
+        response.raise_for_status()  # Wirft eine Exception bei HTTP-Fehlern
+        token_data = response.json()
+        access_token = token_data.get('access_token')
+        
+        if not access_token:
+            raise Exception('Kein Access Token in der Antwort')
+            
+        # Hole Benutzerinformationen
+        user_url = 'https://graph.facebook.com/v18.0/me'
+        user_params = {
+            'access_token': access_token,
+            'fields': 'id,name,accounts{instagram_business_account}'
+        }
+        
+        user_response = requests.get(user_url, params=user_params)
+        user_response.raise_for_status()
+        user_data = user_response.json()
+        
+        # Speichere wichtige Daten in der Session
+        session['user_id'] = user_data.get('id')
+        session['access_token'] = access_token
+        
+        # Hole Instagram Business Account ID
+        accounts = user_data.get('accounts', {}).get('data', [])
+        for account in accounts:
+            if account.get('instagram_business_account'):
+                session['instagram_business_account_id'] = account['instagram_business_account']['id']
+                break
+        
+        return render_template('facebook_callback.html')
+        
+    except Exception as e:
+        flash(f'Fehler bei der Authentifizierung: {str(e)}', 'error')
+        return redirect(url_for('index'))
 
 @app.route('/dashboard')
 def dashboard():
@@ -266,7 +299,7 @@ def dashboard():
         return redirect(url_for('index'))
 
 @app.route('/login')
-def facebook_login():
+def login():
     return render_template('facebook_login.html')
 
 @app.route('/data-deletion')

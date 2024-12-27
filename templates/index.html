@@ -180,9 +180,11 @@
             {% endwith %}
         </div>
 
-        <button onclick="loginWithFacebook()" class="login-button">
-            Mit Facebook fortfahren
-        </button>
+        <div class="login-section">
+            <button onclick="window.location.href='/auth/facebook'" class="login-button">
+                Mit Facebook verbinden
+            </button>
+        </div>
 
         <div class="loading">
             <div class="spinner"></div>

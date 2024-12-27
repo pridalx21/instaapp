@@ -5,10 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Facebook Callback</title>
     <script>
-        // Schließe das Facebook-Fenster nach erfolgreicher Anmeldung
-        window.close();
-        // Weiterleitung zum Dashboard
-        window.location.href = '/dashboard';
+        // Prüfe ob dies ein Popup-Fenster ist
+        if (window.opener) {
+            // Wenn es ein Popup ist, informiere das Hauptfenster und schließe
+            window.opener.location.href = '/scheduler';
+            window.close();
+        } else {
+            // Wenn es kein Popup ist, leite direkt weiter
+            window.location.href = '/scheduler';
+        }
     </script>
 </head>
 <body>
