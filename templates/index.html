@@ -110,7 +110,8 @@
                 appId: '1558999001389004',
                 cookie: true,
                 xfbml: true,
-                version: 'v18.0'
+                version: 'v18.0',
+                status: true
             });
         };
 
@@ -148,12 +149,11 @@
             FB.login(function(response) {
                 if (response.status === 'connected') {
                     // Erfolgreiche Anmeldung
-                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
+                    const redirectUri = 'https://instaapp-crnu.onrender.com/auth/facebook/callback';
+                    window.location.href = redirectUri + '?access_token=' + response.authResponse.accessToken;
                 } else if (response.status === 'not_authorized') {
-                    // Der Benutzer ist bei Facebook angemeldet, hat aber die App nicht autorisiert
                     handleLoginError('App nicht autorisiert');
                 } else {
-                    // Der Benutzer ist nicht bei Facebook angemeldet
                     handleLoginError('Nicht bei Facebook angemeldet');
                 }
             }, {
