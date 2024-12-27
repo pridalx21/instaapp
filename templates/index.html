@@ -68,23 +68,43 @@
             cursor: pointer;
             font-size: 16px;
             margin-top: 20px;
+            width: 100%;
+            transition: background-color 0.2s;
         }
 
         .login-button:hover {
             background-color: #0081d6;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 20px;
+            color: #8e8e8e;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0095f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div id="fb-root"></div>
     <script>
-        // Generate random state parameter
-        function generateState() {
-            const array = new Uint32Array(8);
-            window.crypto.getRandomValues(array);
-            return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
-        }
-
         window.fbAsyncInit = function() {
             FB.init({
                 appId: '1558999001389004',
@@ -103,27 +123,41 @@
             fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'facebook-jssdk'));
 
+        function showLoading() {
+            document.querySelector('.loading').classList.add('visible');
+            document.querySelector('.login-button').disabled = true;
+        }
+
+        function hideLoading() {
+            document.querySelector('.loading').classList.remove('visible');
+            document.querySelector('.login-button').disabled = false;
+        }
+
+        function handleLoginError(error) {
+            console.error('Login error:', error);
+            hideLoading();
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-error';
+            errorDiv.textContent = 'Es gab ein Problem bei der Anmeldung. Bitte versuchen Sie es erneut.';
+            document.querySelector('.messages').appendChild(errorDiv);
+        }
+
         function loginWithFacebook() {
-            const state = generateState();
-            sessionStorage.setItem('fb_state', state);
+            showLoading();
             
             FB.login(function(response) {
                 if (response.status === 'connected') {
-                    // Verify state parameter before redirecting
-                    const returnedState = new URLSearchParams(window.location.search).get('state');
-                    const savedState = sessionStorage.getItem('fb_state');
-                    
-                    if (returnedState && savedState && returnedState === savedState) {
-                        window.location.href = '/auth/facebook/callback?access_token=' + 
-                            response.authResponse.accessToken + 
-                            '&state=' + state;
-                    } else {
-                        console.error('State parameter mismatch');
-                        alert('Sicherheitsfehler: Ungültiger State-Parameter');
-                    }
+                    // Erfolgreiche Anmeldung
+                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
+                } else if (response.status === 'not_authorized') {
+                    // Der Benutzer ist bei Facebook angemeldet, hat aber die App nicht autorisiert
+                    handleLoginError('App nicht autorisiert');
+                } else {
+                    // Der Benutzer ist nicht bei Facebook angemeldet
+                    handleLoginError('Nicht bei Facebook angemeldet');
                 }
             }, {
-                scope: 'instagram_basic,instagram_content_publish,pages_show_list',
+                scope: 'instagram_basic',
                 auth_type: 'rerequest',
                 return_scopes: true
             });
@@ -149,6 +183,11 @@
         <button onclick="loginWithFacebook()" class="login-button">
             Mit Facebook fortfahren
         </button>
+
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Verbindung wird hergestellt...</p>
+        </div>
     </div>
 </body>
 </html>
