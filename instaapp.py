@@ -214,27 +214,23 @@ def facebook_callback():
         'fields': 'id,name,accounts{instagram_business_account}'
     }
     
-    try:
-        response = requests.get('https://graph.facebook.com/v18.0/me', params=params)
-        response.raise_for_status()  # Raise exception for non-200 status codes
-        
-        user_data = response.json()
-        session['user_id'] = user_data.get('id')
-        session['access_token'] = access_token
-        
-        # Get Instagram business account
-        accounts_data = user_data.get('accounts', {}).get('data', [])
-        for account in accounts_data:
-            if account.get('instagram_business_account'):
-                session['instagram_business_account_id'] = account['instagram_business_account']['id']
-                break
-        
-        flash('Erfolgreich angemeldet!', 'success')
-        return redirect(url_for('dashboard'))
-        
-    except Exception as e:
-        flash(f'Fehler beim Abrufen der Benutzerinformationen: {str(e)}', 'error')
+    response = requests.get('https://graph.facebook.com/v18.0/me', params=params)
+    if response.status_code != 200:
+        flash('Fehler beim Abrufen der Benutzerinformationen', 'error')
         return redirect(url_for('index'))
+
+    user_data = response.json()
+    session['user_id'] = user_data.get('id')
+    session['access_token'] = access_token
+    
+    # Get Instagram business account
+    accounts_data = user_data.get('accounts', {}).get('data', [])
+    for account in accounts_data:
+        if account.get('instagram_business_account'):
+            session['instagram_business_account_id'] = account['instagram_business_account']['id']
+            break
+    
+    return render_template('facebook_callback.html')
 
 @app.route('/dashboard')
 def dashboard():

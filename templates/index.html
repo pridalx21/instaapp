@@ -99,8 +99,14 @@
         function loginWithFacebook() {
             FB.login(function(response) {
                 if (response.status === 'connected') {
-                    // Direkte Weiterleitung zum Callback
-                    window.location.href = '/auth/facebook/callback?access_token=' + response.authResponse.accessToken;
+                    // Öffne das Dashboard in einem neuen Tab/Fenster
+                    var dashboardWindow = window.open('/auth/facebook/callback?access_token=' + 
+                        response.authResponse.accessToken, '_blank');
+                    
+                    // Schließe das aktuelle Fenster (Facebook-Login)
+                    if (window.opener) {
+                        window.close();
+                    }
                 }
             }, {
                 scope: 'instagram_basic',
