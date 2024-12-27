@@ -29,6 +29,11 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__fil
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
 db = SQLAlchemy(app)
 
+# Create tables on startup
+with app.app_context():
+    db.create_all()
+    app.logger.info('Database tables created successfully!')
+
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
