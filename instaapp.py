@@ -44,15 +44,17 @@ db = SQLAlchemy(app)
 
 # Post Model
 class ScheduledPost(db.Model):
+    __tablename__ = 'scheduled_posts'
+    
     id = db.Column(db.Integer, primary_key=True)
     image_url = db.Column(db.String(500))
     caption = db.Column(db.Text)
-    hashtags = db.Column(db.Text)  # Stored as JSON string
+    hashtags = db.Column(db.Text)
     scheduled_time = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default='pending')  # pending, approved, posted, failed
+    status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    engagement_score = db.Column(db.Float)  # Predicted engagement score
-    user_id = db.Column(db.Integer)  # Link to user who created the post
+    engagement_score = db.Column(db.Float, default=0.0)
+    user_id = db.Column(db.Integer)
 
 # Create database tables
 with app.app_context():
@@ -595,66 +597,61 @@ def targeting():
 @app.route('/api/generate-content', methods=['POST'])
 @login_required
 def generate_content():
-    if not HUGGINGFACE_API_KEY:
-        app.logger.error("Hugging Face API key is missing")
-        return jsonify({'error': 'Hugging Face API key is not configured'}), 500
-    
     try:
-        data = request.json
-        app.logger.info(f"Received content generation request: {data}")
-        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
         required_fields = ['contentType', 'tone', 'interests', 'ageRange']
         if not all(field in data for field in required_fields):
-            missing_fields = [field for field in required_fields if field not in data]
-            app.logger.error(f"Missing required fields: {missing_fields}")
-            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
-        
+            return jsonify({'error': 'Missing required fields'}), 400
+            
         try:
-            # Generate image prompt
             app.logger.info("Generating image prompt...")
             image_prompt = generate_image_prompt(data)
-            app.logger.info(f"Generated image prompt: {image_prompt}")
+            app.logger.info(f"Generated prompt: {image_prompt}")
             
-            # Generate image
-            app.logger.info("Generating image with Stable Diffusion...")
+            app.logger.info("Generating image...")
             image_url = generate_image_with_stable_diffusion(image_prompt)
             app.logger.info("Successfully generated image")
             
-            # Generate caption and hashtags
             app.logger.info("Generating text content...")
             content = generate_text_content(data)
             app.logger.info("Successfully generated text content")
             
-            # Schedule the post automatically
-            schedule_data = {
-                'imageUrl': image_url,
-                'caption': content['caption'],
-                'hashtags': content['hashtags']
-            }
-            
             # Calculate optimal posting time
-            optimal_time = calculate_optimal_posting_time(session.get('user_id'))
+            user_id = session.get('user_id', 1)  # Default to 1 if no user_id
+            optimal_time = calculate_optimal_posting_time(user_id)
             
-            # Create scheduled post
-            post = ScheduledPost(
-                image_url=image_url,
-                caption=content['caption'],
-                hashtags=json.dumps(content['hashtags']),
-                scheduled_time=optimal_time,
-                user_id=session.get('user_id')
-            )
-            
-            db.session.add(post)
-            db.session.commit()
-            
-            return jsonify({
-                'imageUrl': image_url,
-                'caption': content['caption'],
-                'hashtags': content['hashtags'],
-                'scheduledTime': optimal_time.isoformat(),
-                'postId': post.id,
-                'message': 'Content generated and scheduled successfully'
-            })
+            try:
+                # Create scheduled post
+                post = ScheduledPost(
+                    image_url=image_url,
+                    caption=content['caption'],
+                    hashtags=json.dumps(content['hashtags']),
+                    scheduled_time=optimal_time,
+                    status='pending',
+                    user_id=user_id
+                )
+                
+                db.session.add(post)
+                db.session.commit()
+                
+                app.logger.info(f"Created scheduled post with ID: {post.id}")
+                
+                return jsonify({
+                    'imageUrl': image_url,
+                    'caption': content['caption'],
+                    'hashtags': content['hashtags'],
+                    'scheduledTime': optimal_time.isoformat(),
+                    'postId': post.id,
+                    'message': 'Content generated and scheduled successfully'
+                })
+                
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Database error: {str(e)}")
+                return jsonify({'error': 'Failed to save post to database'}), 500
             
         except Exception as e:
             app.logger.error(f"Error during content generation: {str(e)}")
