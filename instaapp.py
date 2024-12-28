@@ -493,22 +493,45 @@ def generate_post_function():
     return render_template('generate_post.html')
 
 @app.route('/')
-@cache.cached(timeout=300)
-def index():
-    return render_template('index.html', user_info=session.get('user_info', {}))
+def root():
+    if 'user_info' not in session:
+        return redirect(url_for('login'))
+    return redirect(url_for('dashboard'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        # Simple authentication for demo
+        user = User.query.filter_by(username=username).first()
+        
+        if user:
+            # In a real application, you would verify the password here
+            session['user_info'] = {
+                'username': username,
+                'user_id': user.id
+            }
+            flash('Successfully logged in!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/dashboard')
 @login_required
-@cache.cached(timeout=60, unless=lambda: True)  # Cache unless user is logged in
 def dashboard():
-    user_info = session.get('user_info', FAKE_PROFILE.copy())
-    posts = user_info.get('media', {}).get('data', [])
-    
-    # Calculate statistics
-    statistics = calculate_statistics(posts)
-    
-    # Pass statistics to the template
-    return render_template('dashboard.html', statistics=statistics)
+    if 'user_info' not in session:
+        return redirect(url_for('login'))
+    return render_template('dashboard.html', user_info=session['user_info'])
 
 @app.route('/scheduler')
 @login_required
@@ -702,58 +725,6 @@ def schedule_post():
         logger.error(f'Error in schedule_post: {str(e)}', exc_info=True)
         flash(f'Fehler beim Planen des Beitrags: {str(e)}', 'error')
         return redirect(url_for('scheduler'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if 'logged_in' in session:
-        return redirect(url_for('dashboard'))
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash('Sie wurden erfolgreich abgemeldet', 'success')
-    return redirect(url_for('login'))
-
-@app.errorhandler(413)
-def request_entity_too_large(error):
-    return jsonify({'error': 'File too large'}), 413
-
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    return jsonify({'error': f"Rate limit exceeded. {e.description}"}), 429
-
-@app.errorhandler(500)
-def internal_server_error(error):
-    app.logger.error(f'Server Error: {str(error)}')
-    return jsonify({'error': 'Internal server error'}), 500
-
-def optimize_image(image_file):
-    try:
-        img = Image.open(image_file)
-        
-        # Convert RGBA to RGB if necessary
-        if img.mode == 'RGBA':
-            img = img.convert('RGB')
-            
-        # Calculate new dimensions while maintaining aspect ratio
-        max_size = 1920
-        ratio = min(max_size/float(img.size[0]), max_size/float(img.size[1]))
-        new_size = tuple([int(x*ratio) for x in img.size])
-        
-        # Resize image if larger than max_size
-        if max(img.size) > max_size:
-            img = img.resize(new_size, Image.Resampling.LANCZOS)
-            
-        # Save with optimal quality
-        output = io.BytesIO()
-        img.save(output, format='JPEG', quality=85, optimize=True)
-        output.seek(0)
-        return output
-        
-    except Exception as e:
-        app.logger.error(f"Error optimizing image: {str(e)}")
-        return None
 
 @app.route('/api/generate-content', methods=['POST'])
 @login_required
