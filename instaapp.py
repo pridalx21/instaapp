@@ -1042,6 +1042,18 @@ def subscribe():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/data-deletion')
+def data_deletion():
+    return render_template('data_deletion.html')
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
+
 @app.before_request
 def before_request():
     # Create database tables if they don't exist
