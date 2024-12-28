@@ -89,11 +89,8 @@ else:
 cache.init_app(app)
 
 # Initialize scheduler with proper configuration
-scheduler = BackgroundScheduler(
-    daemon=True,
-    job_defaults={'coalesce': True, 'max_instances': 1}
-)
-scheduler.start()
+scheduler = BackgroundScheduler()
+scheduler.add_job(check_scheduled_posts, 'interval', minutes=1)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1212,20 +1209,5 @@ def ratelimit_handler(error):
     return jsonify({'error': f"Rate limit exceeded. {error.description}"}), 429
 
 if __name__ == '__main__':
-    # Start the scheduler
     scheduler.start()
-    
-    # Use production server when deployed
-    if os.environ.get('RENDER'):
-        # Production settings
-        app.config.update(
-            SESSION_COOKIE_SECURE=True,
-            SESSION_COOKIE_HTTPONLY=True,
-            SESSION_COOKIE_SAMESITE='Lax',
-            PREFERRED_URL_SCHEME='https'
-        )
-        port = int(os.environ.get('PORT', 10000))
-        app.run(host='0.0.0.0', port=port)
-    else:
-        # Development settings
-        app.run(debug=True)
+    app.run(debug=True)
