@@ -21,20 +21,19 @@
                     xfbml: true,
                     version: 'v19.0'
                 });
-
-                // Prüfe den Login-Status beim Laden der Seite
+                
+                FB.AppEvents.logPageView();   
+                
                 FB.getLoginStatus(function(response) {
                     console.log('Initial status check:', response);
                     statusChangeCallback(response);
                 });
             };
-
-            // Facebook SDK laden
-            (function(d, s, id) {
+          
+            (function(d, s, id){
                 var js, fjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) return;
-                js = d.createElement(s);
-                js.id = id;
+                if (d.getElementById(id)) {return;}
+                js = d.createElement(s); js.id = id;
                 js.src = "https://connect.facebook.net/de_DE/sdk.js";
                 fjs.parentNode.insertBefore(js, fjs);
             }(document, 'script', 'facebook-jssdk'));
@@ -45,31 +44,20 @@
                 
                 switch(response.status) {
                     case 'connected':
-                        // Der Nutzer ist bei Facebook und der App eingeloggt
                         statusDisplay.innerHTML = 'Verbinde mit Facebook...';
                         handleConnected(response.authResponse);
                         break;
-                        
                     case 'not_authorized':
-                        // Der Nutzer ist bei Facebook eingeloggt, aber nicht bei der App
-                        statusDisplay.innerHTML = 'Bitte autorisieren Sie diese App, um fortzufahren.';
+                        statusDisplay.innerHTML = 'Bitte autorisieren Sie diese App.';
                         break;
-                        
-                    case 'unknown':
-                        // Der Nutzer ist nicht bei Facebook eingeloggt
-                        statusDisplay.innerHTML = 'Bitte loggen Sie sich bei Facebook ein.';
-                        break;
-                        
                     default:
-                        statusDisplay.innerHTML = 'Ein unbekannter Fehler ist aufgetreten.';
-                        console.error('Unbekannter Login-Status:', response);
+                        statusDisplay.innerHTML = 'Bitte loggen Sie sich bei Facebook ein.';
                 }
             }
 
             function handleConnected(authResponse) {
-                console.log('Handling connected state:', authResponse);
+                console.log('Connected:', authResponse);
                 
-                // Token an den Server senden
                 fetch('/facebook/callback', {
                     method: 'POST',
                     headers: {
@@ -77,41 +65,22 @@
                     },
                     body: JSON.stringify({
                         access_token: authResponse.accessToken,
-                        user_id: authResponse.userID,
-                        expires_in: authResponse.expiresIn,
-                        signed_request: authResponse.signedRequest
+                        user_id: authResponse.userID
                     })
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        document.getElementById('status').innerHTML = 'Erfolgreich verbunden! Leite weiter...';
                         window.location.href = '/dashboard';
                     } else {
-                        throw new Error(data.error || 'Unknown error');
+                        document.getElementById('status').innerHTML = 
+                            'Fehler: ' + (data.error || 'Unbekannter Fehler');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    document.getElementById('status').innerHTML = 'Fehler beim Verbinden mit dem Server: ' + error.message;
-                });
-            }
-
-            function checkLoginState() {
-                FB.getLoginStatus(function(response) {
-                    statusChangeCallback(response);
-                });
-            }
-
-            // Logout-Funktion
-            function fbLogout() {
-                FB.logout(function(response) {
-                    statusChangeCallback(response);
+                    document.getElementById('status').innerHTML = 
+                        'Verbindungsfehler: ' + error.message;
                 });
             }
         </script>
@@ -119,11 +88,10 @@
         <div class="login-container">
             <fb:login-button 
                 scope="public_profile,email,instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement"
-                onlogin="checkLoginState();"
+                onlogin="statusChangeCallback"
                 size="large"
                 button-type="continue_with"
-                layout="rounded"
-                use-continue-as="true">
+                layout="rounded">
             </fb:login-button>
         </div>
 

@@ -173,10 +173,18 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     posts = db.relationship('Post', backref='author', lazy=True)
     subscription = db.relationship('Subscription', backref='user', uselist=False)
+    facebook_id = db.Column(db.String(100), nullable=True)
+    facebook_token = db.Column(db.String(200), nullable=True)
+    password_hash = db.Column(db.String(200), nullable=True)
 
-    def __init__(self, username, email):
+    def __init__(self, username, email, facebook_id=None, password_hash=None):
         self.username = username
         self.email = email
+        self.facebook_id = facebook_id
+        self.password_hash = password_hash
+
+    def check_password(self, password):
+        return self.password_hash == password
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -186,14 +194,18 @@ class Post(db.Model):
     hashtags = db.Column(db.String(200), nullable=False)
     scheduled_time = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(50), nullable=False)
+    instagram_account_id = db.Column(db.String(100), nullable=True)
+    published_time = db.Column(db.DateTime, nullable=True)
+    error_message = db.Column(db.String(200), nullable=True)
 
-    def __init__(self, user_id, image_url, caption, hashtags, scheduled_time, status):
+    def __init__(self, user_id, image_url, caption, hashtags, scheduled_time, status, instagram_account_id=None):
         self.user_id = user_id
         self.image_url = image_url
         self.caption = caption
         self.hashtags = hashtags
         self.scheduled_time = scheduled_time
         self.status = status
+        self.instagram_account_id = instagram_account_id
 
 class Subscription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -462,11 +474,9 @@ def facebook_callback():
         try:
             data = request.get_json()
             access_token = data.get('access_token')
-            user_id = data.get('user_id')
-            expires_in = data.get('expires_in')
-            signed_request = data.get('signed_request')
+            fb_user_id = data.get('user_id')
             
-            if not all([access_token, user_id]):
+            if not all([access_token, fb_user_id]):
                 app.logger.error("Missing required auth data")
                 return jsonify({'success': False, 'error': 'Fehlende Authentifizierungsdaten'})
             
@@ -478,19 +488,33 @@ def facebook_callback():
                     'fields': 'id,name,email'
                 })
                 response.raise_for_status()
-                user_info = response.json()
+                fb_user_info = response.json()
                 
                 # Verify user ID matches
-                if user_info['id'] != user_id:
+                if fb_user_info['id'] != fb_user_id:
                     raise ValueError("User ID mismatch")
                 
-                # Store complete auth info in session
+                # Find or create user
+                user = User.query.filter_by(facebook_id=fb_user_id).first()
+                if not user:
+                    # Generate a random password for the user
+                    random_password = secrets.token_urlsafe(32)
+                    user = User(
+                        username=fb_user_info.get('name'),
+                        email=fb_user_info.get('email'),
+                        facebook_id=fb_user_id,
+                        password_hash=generate_password_hash(random_password)
+                    )
+                    db.session.add(user)
+                
+                # Update Facebook token
+                user.facebook_token = access_token
+                db.session.commit()
+                
+                # Log the user in
                 session['user_info'] = {
-                    'user_id': user_id,
-                    'name': user_info['name'],
-                    'email': user_info.get('email'),
-                    'facebook_token': access_token,
-                    'token_expires': int(time.time()) + int(expires_in) if expires_in else None
+                    'username': user.username,
+                    'user_id': user.id
                 }
                 
                 return jsonify({'success': True})
@@ -502,7 +526,7 @@ def facebook_callback():
         except Exception as e:
             app.logger.error(f'Facebook callback error: {str(e)}')
             return jsonify({'success': False, 'error': str(e)})
-    
+
     # Handle GET request (initial OAuth callback)
     if 'error' in request.args:
         flash(f"Authorization failed: {request.args.get('error_description', 'Unknown error')}", 'error')
@@ -533,15 +557,29 @@ def facebook_callback():
             'fields': 'id,name,email'
         })
         response.raise_for_status()
-        user_info = response.json()
+        fb_user_info = response.json()
         
-        # Store complete auth info in session
+        # Find or create user
+        user = User.query.filter_by(facebook_id=fb_user_info['id']).first()
+        if not user:
+            # Generate a random password for the user
+            random_password = secrets.token_urlsafe(32)
+            user = User(
+                username=fb_user_info.get('name'),
+                email=fb_user_info.get('email'),
+                facebook_id=fb_user_info['id'],
+                password_hash=generate_password_hash(random_password)
+            )
+            db.session.add(user)
+        
+        # Update Facebook token
+        user.facebook_token = token_data['access_token']
+        db.session.commit()
+        
+        # Log the user in
         session['user_info'] = {
-            'user_id': user_info['id'],
-            'name': user_info['name'],
-            'email': user_info.get('email'),
-            'facebook_token': token_data['access_token'],
-            'token_expires': int(time.time()) + int(token_data.get('expires_in', 0))
+            'username': user.username,
+            'user_id': user.id
         }
         
         flash('Successfully connected to Facebook!', 'success')
@@ -616,32 +654,20 @@ def login():
         return redirect(url_for('dashboard'))
         
     if request.method == 'POST':
-        username = request.form.get('username')
+        email = request.form.get('email')
         password = request.form.get('password')
         
-        # Simple authentication for demo
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(email=email).first()
         
-        if user:
-            # In a real application, you would verify the password here
+        if user and user.check_password(password):
             session['user_info'] = {
-                'username': username,
+                'username': user.username,
                 'user_id': user.id
             }
             flash('Erfolgreich angemeldet!', 'success')
             return redirect(url_for('dashboard'))
         else:
-            # Create a new user if they don't exist (for demo purposes)
-            new_user = User(username=username, email=f"{username}@example.com")
-            db.session.add(new_user)
-            db.session.commit()
-            
-            session['user_info'] = {
-                'username': username,
-                'user_id': new_user.id
-            }
-            flash('Neuer Account erstellt und angemeldet!', 'success')
-            return redirect(url_for('dashboard'))
+            flash('Ungültige Email oder Passwort', 'error')
     
     return render_template('login.html')
 
@@ -1272,5 +1298,5 @@ def ratelimit_handler(error):
     return jsonify({'error': f"Rate limit exceeded. {error.description}"}), 429
 
 if __name__ == '__main__':
-    scheduler.start()
+ ##   scheduler.start()
     app.run(debug=True)
