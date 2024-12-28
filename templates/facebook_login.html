@@ -21,6 +21,7 @@
                 if (response.status === 'connected') {
                     // Erfolgreich eingeloggt
                     console.log('Access Token:', response.authResponse.accessToken);
+                    document.getElementById('status').innerHTML = 'Verbinde mit Facebook...';
                     
                     // Token an den Server senden
                     fetch('/facebook/callback', {
@@ -32,13 +33,23 @@
                             access_token: response.authResponse.accessToken
                         })
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
+                            document.getElementById('status').innerHTML = 'Erfolgreich verbunden! Leite weiter...';
                             window.location.href = '/dashboard';
                         } else {
                             document.getElementById('status').innerHTML = 'Fehler beim Login: ' + data.error;
                         }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('status').innerHTML = 'Fehler beim Verbinden mit dem Server';
                     });
                 } else {
                     document.getElementById('status').innerHTML = 'Bitte loggen Sie sich ein.';

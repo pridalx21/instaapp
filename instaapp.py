@@ -396,15 +396,44 @@ def facebook_login():
     
     return redirect(f"{fb_oauth_url}?{urlencode(params)}")
 
-@app.route('/facebook/callback')
+@app.route('/facebook/callback', methods=['GET', 'POST'])
 def facebook_callback():
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            access_token = data.get('access_token')
+            
+            # Get user info from Facebook
+            user_info_url = 'https://graph.facebook.com/v19.0/me'
+            response = requests.get(user_info_url, params={
+                'access_token': access_token,
+                'fields': 'id,name,email'
+            })
+            response.raise_for_status()
+            user_info = response.json()
+            
+            # Store user info in session
+            session['user_info'] = {
+                'user_id': user_info['id'],
+                'name': user_info['name'],
+                'email': user_info.get('email'),
+                'facebook_token': access_token
+            }
+            
+            return jsonify({'success': True})
+            
+        except Exception as e:
+            app.logger.error(f'Facebook callback error: {str(e)}')
+            return jsonify({'success': False, 'error': str(e)})
+    
+    # Handle GET request (initial OAuth callback)
+    if 'error' in request.args:
+        flash(f"Authorization failed: {request.args.get('error_description', 'Unknown error')}", 'error')
+        return redirect(url_for('login'))
+    
     # Verify state parameter to prevent CSRF attacks
     if request.args.get('state') != session.get('fb_state'):
         flash('Invalid state parameter. Please try again.', 'error')
-        return redirect(url_for('login'))
-    
-    if 'error' in request.args:
-        flash(f"Authorization failed: {request.args.get('error_description', 'Unknown error')}", 'error')
         return redirect(url_for('login'))
     
     # Exchange code for access token
@@ -420,8 +449,23 @@ def facebook_callback():
         response.raise_for_status()
         token_data = response.json()
         
-        # Store the access token in session
-        session['facebook_token'] = token_data['access_token']
+        # Get user info from Facebook
+        user_info_url = 'https://graph.facebook.com/v19.0/me'
+        response = requests.get(user_info_url, params={
+            'access_token': token_data['access_token'],
+            'fields': 'id,name,email'
+        })
+        response.raise_for_status()
+        user_info = response.json()
+        
+        # Store user info in session
+        session['user_info'] = {
+            'user_id': user_info['id'],
+            'name': user_info['name'],
+            'email': user_info.get('email'),
+            'facebook_token': token_data['access_token']
+        }
+        
         flash('Successfully connected to Facebook!', 'success')
         return redirect(url_for('dashboard'))
         
