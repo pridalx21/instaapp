@@ -24,16 +24,33 @@ from dateutil import parser
 # Load environment variables from .env file
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
-app.config['DEBUG'] = False
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+
+# App configuration
+app.config.update(
+    SESSION_TYPE='filesystem',
+    SESSION_PERMANENT=False,
+    PERMANENT_SESSION_LIFETIME=timedelta(days=1),
+    MAX_CONTENT_LENGTH=100 * 1024 * 1024,  # 100MB max file size
+    UPLOAD_FOLDER=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads'),
+    SQLALCHEMY_DATABASE_URI=os.getenv('DATABASE_URL', 'sqlite:///instaapp.db'),
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    TEMPLATES_AUTO_RELOAD=True
+)
+
+# Ensure upload directory exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -41,30 +58,32 @@ compress = Compress(app)
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
 )
 
-# Initialize cache after app configuration
-cache = Cache(config={'CACHE_TYPE': 'SimpleCache'})
+# Initialize cache with proper configuration for production
+if os.environ.get('RENDER'):
+    cache = Cache(config={
+        'CACHE_TYPE': 'SimpleCache',
+        'CACHE_DEFAULT_TIMEOUT': 300
+    })
+else:
+    cache = Cache(config={
+        'CACHE_TYPE': 'SimpleCache',
+        'CACHE_DEFAULT_TIMEOUT': 300
+    })
 cache.init_app(app)
 
-# Initialize scheduler
-scheduler = BackgroundScheduler()
+# Initialize scheduler with proper configuration
+scheduler = BackgroundScheduler(
+    daemon=True,
+    job_defaults={'coalesce': True, 'max_instances': 1}
+)
 scheduler.start()
 
 # Load environment variables from .env file
 load_dotenv()
-
-app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)  # Generate a secure random key
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Session expires after 1 day
-app.config['DEBUG'] = False  # Disable debug mode in production
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size for videos
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
-db = SQLAlchemy(app)
 
 # Database Models
 class User(db.Model):
@@ -131,13 +150,6 @@ with app.app_context():
         app.logger.info('Test user created successfully!')
     
     app.logger.info('Database tables created successfully!')
-
-# Create upload folder if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# Logging konfigurieren
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 # File Upload Configuration
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -1018,10 +1030,57 @@ def analytics():
     stats = calculate_statistics(posts)
     return render_template('analytics.html', stats=stats)
 
+@app.before_request
+def before_request():
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
+    
+    # Set secure headers
+    if os.environ.get('RENDER'):
+        if request.is_secure:
+            return
+
+        # Redirect any non-secure requests to HTTPS
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
+
+@app.after_request
+def after_request(response):
+    # Security headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # CORS headers
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    
+    return response
+
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    logger.error(f'Server Error: {str(error)}')
+    return render_template('500.html'), 500
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({'error': 'File too large (max 100MB)'}), 413
+
+@app.errorhandler(429)
+def ratelimit_handler(error):
+    return jsonify({'error': f"Rate limit exceeded. {error.description}"}), 429
+
 if __name__ == '__main__':
     # Use production server when deployed
     if os.environ.get('RENDER'):
-        app.run()
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
     else:
-        # Use debug mode locally
         app.run(debug=True, use_reloader=True)
