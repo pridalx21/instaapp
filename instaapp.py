@@ -34,18 +34,19 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['CACHE_TYPE'] = 'simple'
-app.config['CACHE_DEFAULT_TIMEOUT'] = 300
 
 # Initialize extensions
 db = SQLAlchemy(app)
-cache = Cache(app)
+compress = Compress(app)
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"]
 )
-Compress(app)
+
+# Initialize cache after app configuration
+cache = Cache(config={'CACHE_TYPE': 'SimpleCache'})
+cache.init_app(app)
 
 # Initialize scheduler
 scheduler = BackgroundScheduler()
@@ -483,7 +484,7 @@ def generate_post_function():
 def index():
     if 'user_info' not in session:
         session['user_info'] = FAKE_PROFILE.copy()
-    return render_template('index.html')
+    return render_template('index.html', user_info=session['user_info'])
 
 @app.route('/dashboard')
 @login_required
@@ -1004,6 +1005,18 @@ def subscribe():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/analytics')
+@login_required
+def analytics():
+    user = User.query.filter_by(username=session.get('username')).first()
+    if not user:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('login'))
+        
+    posts = Post.query.filter_by(user_id=user.id).all()
+    stats = calculate_statistics(posts)
+    return render_template('analytics.html', stats=stats)
 
 if __name__ == '__main__':
     # Use production server when deployed
