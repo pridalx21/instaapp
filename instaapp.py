@@ -531,7 +531,35 @@ def logout():
 def dashboard():
     if 'user_info' not in session:
         return redirect(url_for('login'))
-    return render_template('dashboard.html', user_info=session['user_info'])
+        
+    try:
+        # Get user info from session
+        user_info = session.get('user_info', {})
+        
+        # Get posts from database
+        posts = []
+        if 'user_id' in user_info:
+            posts = Post.query.filter_by(user_id=user_info['user_id']).all()
+        
+        # Calculate statistics
+        total_posts = len(posts)
+        scheduled_posts = len([p for p in posts if p.scheduled_time and p.scheduled_time > datetime.now()])
+        published_posts = len([p for p in posts if p.published])
+        
+        statistics = {
+            'total_posts': total_posts,
+            'scheduled_posts': scheduled_posts,
+            'published_posts': published_posts
+        }
+        
+        return render_template('dashboard.html', 
+                             user_info=user_info,
+                             statistics=statistics,
+                             posts=posts)
+                             
+    except Exception as e:
+        app.logger.error(f"Dashboard error: {str(e)}")
+        return render_template('500.html'), 500
 
 @app.route('/scheduler')
 @login_required
