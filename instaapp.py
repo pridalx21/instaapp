@@ -98,6 +98,14 @@ scheduler.start()
 # Load environment variables from .env file
 load_dotenv()
 
+# Base URL configuration
+BASE_URL = 'https://instaapp-cmu.onrender.com' if os.environ.get('RENDER') else 'http://localhost:5000'
+
+# Privacy and Terms URLs
+PRIVACY_POLICY_URL = f'{BASE_URL}/privacy'
+TERMS_URL = f'{BASE_URL}/terms'
+DATA_DELETION_URL = f'{BASE_URL}/data-deletion'
+
 # Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -369,10 +377,7 @@ def generate_image_with_stable_diffusion(prompt):
 # Facebook/Instagram API Configuration
 FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET')
-if os.environ.get('RENDER'):
-    FACEBOOK_REDIRECT_URI = 'https://instaapp-crnu.onrender.com/facebook/callback'
-else:
-    FACEBOOK_REDIRECT_URI = 'http://localhost:5000/facebook/callback'
+FACEBOOK_REDIRECT_URI = f'{BASE_URL}/facebook/callback'
 
 @app.route('/facebook/login')
 def facebook_login():
