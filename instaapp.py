@@ -402,26 +402,43 @@ def facebook_callback():
         try:
             data = request.get_json()
             access_token = data.get('access_token')
+            user_id = data.get('user_id')
+            expires_in = data.get('expires_in')
+            signed_request = data.get('signed_request')
+            
+            if not all([access_token, user_id]):
+                app.logger.error("Missing required auth data")
+                return jsonify({'success': False, 'error': 'Fehlende Authentifizierungsdaten'})
             
             # Get user info from Facebook
-            user_info_url = 'https://graph.facebook.com/v19.0/me'
-            response = requests.get(user_info_url, params={
-                'access_token': access_token,
-                'fields': 'id,name,email'
-            })
-            response.raise_for_status()
-            user_info = response.json()
-            
-            # Store user info in session
-            session['user_info'] = {
-                'user_id': user_info['id'],
-                'name': user_info['name'],
-                'email': user_info.get('email'),
-                'facebook_token': access_token
-            }
-            
-            return jsonify({'success': True})
-            
+            try:
+                user_info_url = 'https://graph.facebook.com/v19.0/me'
+                response = requests.get(user_info_url, params={
+                    'access_token': access_token,
+                    'fields': 'id,name,email'
+                })
+                response.raise_for_status()
+                user_info = response.json()
+                
+                # Verify user ID matches
+                if user_info['id'] != user_id:
+                    raise ValueError("User ID mismatch")
+                
+                # Store complete auth info in session
+                session['user_info'] = {
+                    'user_id': user_id,
+                    'name': user_info['name'],
+                    'email': user_info.get('email'),
+                    'facebook_token': access_token,
+                    'token_expires': int(time.time()) + int(expires_in) if expires_in else None
+                }
+                
+                return jsonify({'success': True})
+                
+            except requests.exceptions.RequestException as e:
+                app.logger.error(f"Facebook API error: {str(e)}")
+                return jsonify({'success': False, 'error': 'Fehler beim Abrufen der Benutzerinformationen'})
+                
         except Exception as e:
             app.logger.error(f'Facebook callback error: {str(e)}')
             return jsonify({'success': False, 'error': str(e)})
@@ -458,12 +475,13 @@ def facebook_callback():
         response.raise_for_status()
         user_info = response.json()
         
-        # Store user info in session
+        # Store complete auth info in session
         session['user_info'] = {
             'user_id': user_info['id'],
             'name': user_info['name'],
             'email': user_info.get('email'),
-            'facebook_token': token_data['access_token']
+            'facebook_token': token_data['access_token'],
+            'token_expires': int(time.time()) + int(token_data.get('expires_in', 0))
         }
         
         flash('Successfully connected to Facebook!', 'success')
@@ -716,6 +734,7 @@ def schedule_posts():
                 if media_file and media_file.filename:
                     media_filename = secure_filename(media_file.filename)
                     media_filepath = os.path.join(app.config['UPLOAD_FOLDER'], media_filename)
+                    logger.debug(f'Saving image to: {media_filepath}')
                     try:
                         media_file.save(media_filepath)
                     except Exception as e:
