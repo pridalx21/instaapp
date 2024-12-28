@@ -99,7 +99,7 @@ scheduler.start()
 load_dotenv()
 
 # Base URL configuration
-BASE_URL = 'https://instaapp-cmu.onrender.com' if os.environ.get('RENDER') else 'http://localhost:5000'
+BASE_URL = 'https://instappcmu.onrender.com' if os.environ.get('RENDER') else 'http://localhost:5000'
 
 # Privacy and Terms URLs
 PRIVACY_POLICY_URL = f'{BASE_URL}/privacy'
