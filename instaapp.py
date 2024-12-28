@@ -21,6 +21,8 @@ from flask_compress import Compress
 from apscheduler.schedulers.background import BackgroundScheduler
 from dateutil import parser
 from dateutil import parser
+import string
+from urllib.parse import urlencode
 
 # Load environment variables from .env file
 load_dotenv()
@@ -374,81 +376,53 @@ else:
 
 @app.route('/facebook/login')
 def facebook_login():
+    # Generate a random state parameter to prevent CSRF attacks
+    state = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    session['fb_state'] = state
+    
     # Facebook OAuth URL
-    fb_oauth_url = f"https://www.facebook.com/v18.0/dialog/oauth?client_id={FACEBOOK_APP_ID}&redirect_uri={FACEBOOK_REDIRECT_URI}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,instagram_manage_insights"
-    return redirect(fb_oauth_url)
+    fb_oauth_url = 'https://www.facebook.com/v18.0/dialog/oauth'
+    params = {
+        'client_id': FACEBOOK_APP_ID,
+        'redirect_uri': FACEBOOK_REDIRECT_URI,
+        'state': state,
+        'scope': 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,public_profile'
+    }
+    
+    return redirect(f"{fb_oauth_url}?{urlencode(params)}")
 
 @app.route('/facebook/callback')
 def facebook_callback():
-    error = request.args.get('error')
-    if error:
-        flash(f'Facebook Login Error: {error}', 'error')
+    # Verify state parameter to prevent CSRF attacks
+    if request.args.get('state') != session.get('fb_state'):
+        flash('Invalid state parameter. Please try again.', 'error')
         return redirect(url_for('login'))
-
-    code = request.args.get('code')
-    if not code:
-        flash('No code received from Facebook', 'error')
+    
+    if 'error' in request.args:
+        flash(f"Authorization failed: {request.args.get('error_description', 'Unknown error')}", 'error')
         return redirect(url_for('login'))
-
+    
     # Exchange code for access token
-    token_url = 'https://graph.facebook.com/v18.0/oauth/access_token'
-    token_params = {
-        'client_id': FACEBOOK_APP_ID,
-        'client_secret': FACEBOOK_APP_SECRET,
-        'code': code,
-        'redirect_uri': FACEBOOK_REDIRECT_URI
-    }
-
     try:
-        token_response = requests.get(token_url, params=token_params)
-        token_data = token_response.json()
+        code = request.args.get('code')
+        token_url = 'https://graph.facebook.com/v18.0/oauth/access_token'
+        response = requests.get(token_url, params={
+            'client_id': FACEBOOK_APP_ID,
+            'client_secret': FACEBOOK_APP_SECRET,
+            'redirect_uri': FACEBOOK_REDIRECT_URI,
+            'code': code
+        })
+        response.raise_for_status()
+        token_data = response.json()
         
-        if 'error' in token_data:
-            flash(f'Token Error: {token_data["error"]["message"]}', 'error')
-            return redirect(url_for('login'))
-
-        access_token = token_data['access_token']
-
-        # Get Facebook user data
-        graph_url = 'https://graph.facebook.com/v18.0/me'
-        user_params = {
-            'fields': 'id,name,email',
-            'access_token': access_token
-        }
-        user_response = requests.get(graph_url, params=user_params)
-        user_data = user_response.json()
-
-        # Get Instagram business accounts
-        accounts_url = 'https://graph.facebook.com/v18.0/me/accounts'
-        accounts_params = {
-            'access_token': access_token,
-            'fields': 'instagram_business_account,name'
-        }
-        accounts_response = requests.get(accounts_url, params=accounts_params)
-        accounts_data = accounts_response.json()
-
-        # Store user info in session
-        session['logged_in'] = True
-        session['user_info'] = {
-            'id': user_data['id'],
-            'name': user_data.get('name'),
-            'email': user_data.get('email'),
-            'access_token': access_token
-        }
-        
-        # Store Instagram business account info if available
-        if 'data' in accounts_data and accounts_data['data']:
-            for account in accounts_data['data']:
-                if 'instagram_business_account' in account:
-                    session['instagram_business_account'] = account['instagram_business_account']
-                    session['page_access_token'] = account['access_token']
-                    break
-
-        flash('Successfully logged in with Facebook/Instagram!', 'success')
+        # Store the access token in session
+        session['facebook_token'] = token_data['access_token']
+        flash('Successfully connected to Facebook!', 'success')
         return redirect(url_for('dashboard'))
-
-    except Exception as e:
-        flash(f'Error during login: {str(e)}', 'error')
+        
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f'Facebook OAuth error: {str(e)}')
+        flash('Failed to connect to Facebook. Please try again.', 'error')
         return redirect(url_for('login'))
 
 @app.route('/api/schedule-post', methods=['POST'])
