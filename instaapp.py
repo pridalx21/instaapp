@@ -1053,20 +1053,25 @@ def terms():
 def data_deletion():
     return render_template('data_deletion.html')
 
+# Public routes that don't require authentication
+PUBLIC_ROUTES = ['privacy', 'terms', 'data_deletion']
+
 @app.before_request
 def before_request():
     # Create database tables if they don't exist
     with app.app_context():
         db.create_all()
     
+    # Allow public routes without authentication
+    if request.endpoint in PUBLIC_ROUTES:
+        return None
+    
     # Set secure headers
     if os.environ.get('RENDER'):
-        if request.is_secure:
-            return
-
-        # Redirect any non-secure requests to HTTPS
-        url = request.url.replace('http://', 'https://', 1)
-        return redirect(url, code=301)
+        if not request.is_secure:
+            # Redirect any non-secure requests to HTTPS
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
 
 @app.after_request
 def after_request(response):
