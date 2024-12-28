@@ -494,9 +494,7 @@ def generate_post_function():
 @app.route('/')
 @cache.cached(timeout=300)
 def index():
-    if 'user_info' not in session:
-        session['user_info'] = FAKE_PROFILE.copy()
-    return render_template('index.html', user_info=session['user_info'])
+    return render_template('index.html', user_info=session.get('user_info', {}))
 
 @app.route('/dashboard')
 @login_required
@@ -985,7 +983,7 @@ def scheduled_posts():
 
 @app.route('/pricing')
 def pricing():
-    return render_template('pricing.html')
+    return render_template('pricing.html', user_info=session.get('user_info', {}))
 
 @app.route('/api/subscribe', methods=['POST'])
 @login_required
@@ -1021,14 +1019,48 @@ def subscribe():
 @app.route('/analytics')
 @login_required
 def analytics():
-    user = User.query.filter_by(username=session.get('username')).first()
-    if not user:
+    if 'user_info' not in session:
         flash('Please log in first.', 'error')
         return redirect(url_for('login'))
         
-    posts = Post.query.filter_by(user_id=user.id).all()
-    stats = calculate_statistics(posts)
-    return render_template('analytics.html', stats=stats)
+    try:
+        user = User.query.filter_by(username=session.get('username')).first()
+        posts = Post.query.filter_by(user_id=user.id).all() if user else []
+        stats = calculate_statistics(posts)
+        return render_template('analytics.html', stats=stats, user_info=session['user_info'])
+    except Exception as e:
+        app.logger.error(f"Error in analytics route: {str(e)}")
+        flash('Error loading analytics. Please try again later.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/targeting')
+@login_required
+def targeting():
+    if 'user_info' not in session:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('login'))
+    return render_template('targeting.html', user_info=session['user_info'])
+
+@app.route('/pricing')
+def pricing():
+    return render_template('pricing.html', user_info=session.get('user_info', {}))
+
+@app.route('/analytics')
+@login_required
+def analytics():
+    if 'user_info' not in session:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('login'))
+    
+    try:
+        user = User.query.filter_by(username=session.get('username')).first()
+        posts = Post.query.filter_by(user_id=user.id).all() if user else []
+        stats = calculate_statistics(posts)
+        return render_template('analytics.html', stats=stats, user_info=session['user_info'])
+    except Exception as e:
+        app.logger.error(f"Error in analytics route: {str(e)}")
+        flash('Error loading analytics. Please try again later.', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.before_request
 def before_request():
