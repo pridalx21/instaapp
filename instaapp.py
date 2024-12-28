@@ -882,8 +882,9 @@ def schedule_posts():
         flash(f'Fehler beim Planen der Posts: {str(e)}', 'error')
         return redirect(url_for('scheduler'))
 
-@app.route('/schedule_post', methods=['POST'])
-def schedule_post():
+@app.route('/schedule_post_legacy', methods=['POST'])
+@login_required
+def schedule_post_legacy():
     try:
         logger.debug('Received schedule_post request')
         logger.debug(f'Form data: {request.form}')
