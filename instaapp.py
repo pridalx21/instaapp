@@ -35,6 +35,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     posts = db.relationship('Post', backref='author', lazy=True)
+    subscription = db.relationship('Subscription', backref='user', uselist=False)
 
     def __init__(self, username, email):
         self.username = username
@@ -56,6 +57,29 @@ class Post(db.Model):
         self.hashtags = hashtags
         self.scheduled_time = scheduled_time
         self.status = status
+
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    plan_type = db.Column(db.String(20), nullable=False)  # 'monthly', 'sixmonth', 'yearly'
+    start_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, nullable=False)
+    active = db.Column(db.Boolean, default=True)
+    price = db.Column(db.Float, nullable=False)
+
+    def __init__(self, user_id, plan_type, price):
+        self.user_id = user_id
+        self.plan_type = plan_type
+        self.price = price
+        self.start_date = datetime.utcnow()
+        
+        # Set end date based on plan type
+        if plan_type == 'monthly':
+            self.end_date = self.start_date + timedelta(days=30)
+        elif plan_type == 'sixmonth':
+            self.end_date = self.start_date + timedelta(days=180)
+        elif plan_type == 'yearly':
+            self.end_date = self.start_date + timedelta(days=365)
 
 # Create tables on startup
 with app.app_context():
@@ -851,6 +875,41 @@ def scheduled_posts():
         })
     
     return render_template('scheduled_posts.html', events=events)
+
+@app.route('/pricing')
+def pricing():
+    return render_template('pricing.html')
+
+@app.route('/api/subscribe', methods=['POST'])
+@login_required
+def subscribe():
+    data = request.json
+    plan_type = data.get('plan')
+    price = data.get('price')
+    
+    if not plan_type or not price:
+        return jsonify({'success': False, 'error': 'Invalid plan data'})
+    
+    try:
+        # Create new subscription
+        subscription = Subscription(
+            user_id=session['user_id'],
+            plan_type=plan_type,
+            price=price
+        )
+        db.session.add(subscription)
+        db.session.commit()
+        
+        # Here you would typically redirect to a payment processor
+        # For now, we'll just redirect to the dashboard
+        return jsonify({
+            'success': True,
+            'redirect_url': url_for('dashboard')
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     # Use production server when deployed
