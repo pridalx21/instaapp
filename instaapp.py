@@ -1036,17 +1036,17 @@ def subscribe():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/data-deletion')
-def data_deletion():
-    return render_template('data_deletion.html')
-
-@app.route('/privacy-policy')
-def privacy_policy():
-    return render_template('privacy_policy.html')
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
 
 @app.route('/terms')
 def terms():
     return render_template('terms.html')
+
+@app.route('/data-deletion')
+def data_deletion():
+    return render_template('data_deletion.html')
 
 @app.before_request
 def before_request():
