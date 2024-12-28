@@ -832,6 +832,26 @@ def calculate_optimal_posting_time(target_age, interests):
     
     return posting_time
 
+@app.route('/scheduled_posts', methods=['GET', 'POST'])
+def scheduled_posts():
+    # Lade alle geplanten Posts aus der Datenbank
+    posts = Post.query.filter_by(status='scheduled').all()
+    
+    # Formatiere die Posts für den Kalender
+    events = []
+    for post in posts:
+        events.append({
+            'id': post.id,
+            'title': post.caption[:30] + '...' if len(post.caption) > 30 else post.caption,
+            'start': post.scheduled_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'end': (post.scheduled_time + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S'),
+            'imageUrl': post.image_url,
+            'caption': post.caption,
+            'hashtags': post.hashtags.split(',')
+        })
+    
+    return render_template('scheduled_posts.html', events=events)
+
 if __name__ == '__main__':
     # Use production server when deployed
     if os.environ.get('RENDER'):
