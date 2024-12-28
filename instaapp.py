@@ -370,7 +370,7 @@ def generate_image_with_stable_diffusion(prompt):
 FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET')
 if os.environ.get('RENDER'):
-    FACEBOOK_REDIRECT_URI = 'https://instaapp-cmu.onrender.com/facebook/callback'
+    FACEBOOK_REDIRECT_URI = 'https://instaapp-crnu.onrender.com/facebook/callback'
 else:
     FACEBOOK_REDIRECT_URI = 'http://localhost:5000/facebook/callback'
 
@@ -381,7 +381,7 @@ def facebook_login():
     session['fb_state'] = state
     
     # Facebook OAuth URL
-    fb_oauth_url = 'https://www.facebook.com/v18.0/dialog/oauth'
+    fb_oauth_url = 'https://www.facebook.com/v19.0/dialog/oauth'
     params = {
         'client_id': FACEBOOK_APP_ID,
         'redirect_uri': FACEBOOK_REDIRECT_URI,
@@ -405,7 +405,7 @@ def facebook_callback():
     # Exchange code for access token
     try:
         code = request.args.get('code')
-        token_url = 'https://graph.facebook.com/v18.0/oauth/access_token'
+        token_url = 'https://graph.facebook.com/v19.0/oauth/access_token'
         response = requests.get(token_url, params={
             'client_id': FACEBOOK_APP_ID,
             'client_secret': FACEBOOK_APP_SECRET,
