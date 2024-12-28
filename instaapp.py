@@ -1110,8 +1110,20 @@ def ratelimit_handler(error):
     return jsonify({'error': f"Rate limit exceeded. {error.description}"}), 429
 
 if __name__ == '__main__':
+    # Start the scheduler
+    scheduler.start()
+    
     # Use production server when deployed
     if os.environ.get('RENDER'):
-        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+        # Production settings
+        app.config.update(
+            SESSION_COOKIE_SECURE=True,
+            SESSION_COOKIE_HTTPONLY=True,
+            SESSION_COOKIE_SAMESITE='Lax',
+            PREFERRED_URL_SCHEME='https'
+        )
+        port = int(os.environ.get('PORT', 10000))
+        app.run(host='0.0.0.0', port=port)
     else:
-        app.run(debug=True, use_reloader=True)
+        # Development settings
+        app.run(debug=True)
