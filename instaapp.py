@@ -981,9 +981,34 @@ def scheduled_posts():
     
     return render_template('scheduled_posts.html', events=events)
 
+@app.route('/targeting')
+@login_required
+def targeting():
+    if 'user_info' not in session:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('login'))
+    return render_template('targeting.html', user_info=session['user_info'])
+
 @app.route('/pricing')
 def pricing():
     return render_template('pricing.html', user_info=session.get('user_info', {}))
+
+@app.route('/analytics')
+@login_required
+def analytics():
+    if 'user_info' not in session:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('login'))
+    
+    try:
+        user = User.query.filter_by(username=session.get('username')).first()
+        posts = Post.query.filter_by(user_id=user.id).all() if user else []
+        stats = calculate_statistics(posts)
+        return render_template('analytics.html', stats=stats, user_info=session['user_info'])
+    except Exception as e:
+        app.logger.error(f"Error in analytics route: {str(e)}")
+        flash('Error loading analytics. Please try again later.', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/api/subscribe', methods=['POST'])
 @login_required
@@ -1015,52 +1040,6 @@ def subscribe():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/analytics')
-@login_required
-def analytics():
-    if 'user_info' not in session:
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
-        
-    try:
-        user = User.query.filter_by(username=session.get('username')).first()
-        posts = Post.query.filter_by(user_id=user.id).all() if user else []
-        stats = calculate_statistics(posts)
-        return render_template('analytics.html', stats=stats, user_info=session['user_info'])
-    except Exception as e:
-        app.logger.error(f"Error in analytics route: {str(e)}")
-        flash('Error loading analytics. Please try again later.', 'error')
-        return redirect(url_for('dashboard'))
-
-@app.route('/targeting')
-@login_required
-def targeting():
-    if 'user_info' not in session:
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
-    return render_template('targeting.html', user_info=session['user_info'])
-
-@app.route('/pricing')
-def pricing():
-    return render_template('pricing.html', user_info=session.get('user_info', {}))
-
-@app.route('/analytics')
-@login_required
-def analytics():
-    if 'user_info' not in session:
-        flash('Please log in first.', 'error')
-        return redirect(url_for('login'))
-    
-    try:
-        user = User.query.filter_by(username=session.get('username')).first()
-        posts = Post.query.filter_by(user_id=user.id).all() if user else []
-        stats = calculate_statistics(posts)
-        return render_template('analytics.html', stats=stats, user_info=session['user_info'])
-    except Exception as e:
-        app.logger.error(f"Error in analytics route: {str(e)}")
-        flash('Error loading analytics. Please try again later.', 'error')
-        return redirect(url_for('dashboard'))
 
 @app.before_request
 def before_request():
