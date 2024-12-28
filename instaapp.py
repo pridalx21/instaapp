@@ -367,7 +367,10 @@ def generate_image_with_stable_diffusion(prompt):
 # Facebook/Instagram API Configuration
 FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET')
-FACEBOOK_REDIRECT_URI = os.getenv('FACEBOOK_REDIRECT_URI', 'http://localhost:5000/facebook/callback')
+if os.environ.get('RENDER'):
+    FACEBOOK_REDIRECT_URI = 'https://instaapp-cmu.onrender.com/facebook/callback'
+else:
+    FACEBOOK_REDIRECT_URI = 'http://localhost:5000/facebook/callback'
 
 @app.route('/facebook/login')
 def facebook_login():
