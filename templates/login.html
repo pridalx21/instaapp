@@ -51,7 +51,7 @@
             width: 200px;
             height: 70px;
             margin: 0 auto 30px;
-            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNDAgNDciPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iYSIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzRlMDA4MyIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2QxMTRkMSIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxwYXRoIGZpbGw9InVybCgjYSkiIGQ9Ik00Ni4xLDBoMTQ3LjhDMjE2LjQsMCwyMzQsMTcuNiwyMzQsNDB2N3MwLDIyLjQtMTcuNiw0MC00MC40LDQwSDQ2LjFDMjMuNiw4Nyw2LDY5LjQsNiw0N1Y0MEMzLDE3LjYsMjMuNiwwLDQ2LjEsMHoiLz48L3N2Zz4=');
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNDAgNDciPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iYSIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzRlMDA4MyIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2QxMTRkMSIvPjwvbGluZWFyR3JhZGllldD48L2RlZnM+PHBhdGggZmlsbD0idXJsKCNhKSIgZD0iTTQ2LjEsMGgxNDcuOGMyMC4zLDAsMzguMywxNy42LDM4LjMsNDB2N3MwLDIyLjQtMTcuNiw0MC00MC40LDQwSDQ2LjFDMjMuNiw4Nyw2LDY5LjQsNiw0N1Y0MEMzLDE3LjYsMjMuNiw0LDQ2LjEsMHoiLz48L3N2Zz4=');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
@@ -149,42 +149,41 @@
     <div class="main-container">
         </div>
         
-        <div class="login-container">
-            <div class="instagram-logo"></div>
-            
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">
-                            {{ message }}
+        <div class="container py-5">
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card shadow">
+                        <div class="card-body p-5">
+                            <h2 class="text-center mb-4">Mit Instagram verbinden</h2>
+                            
+                            {% with messages = get_flashed_messages(with_categories=true) %}
+                                {% if messages %}
+                                    {% for category, message in messages %}
+                                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                                    {% endfor %}
+                                {% endif %}
+                            {% endwith %}
+
+                            <div class="text-center mb-4">
+                                <p>Verbinde dein Instagram Business-Konto, um alle Funktionen nutzen zu können.</p>
+                            </div>
+                            
+                            <div class="d-grid gap-3">
+                                <a href="{{ url_for('facebook_login') }}" class="btn btn-primary btn-lg">
+                                    <i class="fab fa-facebook me-2"></i>Mit Facebook/Instagram verbinden
+                                </a>
+                            </div>
+
+                            <div class="mt-4">
+                                <p class="text-muted small text-center">
+                                    Hinweis: Du benötigst ein Instagram Business- oder Creator-Konto, das mit deinem Facebook-Konto verbunden ist.
+                                </p>
+                            </div>
                         </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <h1 class="login-title">AutoVision</h1>
-            
-            <div class="demo-notice">
-                <p><strong>Demo-Version</strong></p>
-                <p>Testen Sie die Funktionen mit unserem Demo-Account</p>
-            </div>
-
-           <a href="{{ url_for('dashboard') }}" class="login-button">
-               Mit Demo-Account fortfahren
-           </a>
-
-            <div class="divider">
-                <span class="divider-text">Information</span>
-            </div>
-
-            <div class="demo-box">
-                <p>
-                    <strong>Demo-Account Info:</strong><br>
-                    Alle Daten werden nur temporär gespeichert und nach der Sitzung zurückgesetzt.
-                </p>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
     <footer class="footer">
         <div class="footer-links">

@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
-import flask
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from datetime import datetime, timedelta
 import json
 from werkzeug.utils import secure_filename
@@ -15,21 +14,42 @@ import base64
 import time
 import random
 from flask_sqlalchemy import SQLAlchemy
+from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from werkzeug.security import generate_password_hash, check_password_hash
-import bleach
-from sqlalchemy.exc import SQLAlchemyError
-from flask_caching import Cache
-from functools import wraps
-import json
-from datetime import datetime, timedelta
-import hashlib
-from prometheus_client import Counter, Histogram, Info
-import time
-import traceback
-from typing import Optional, Dict, Any
-import platform
+from flask_compress import Compress
+from apscheduler.schedulers.background import BackgroundScheduler
+from dateutil import parser
+
+# Load environment variables from .env file
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_PERMANENT'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
+app.config['DEBUG'] = False
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['CACHE_TYPE'] = 'simple'
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300
+
+# Initialize extensions
+db = SQLAlchemy(app)
+cache = Cache(app)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
+Compress(app)
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+scheduler.start()
 
 # Load environment variables from .env file
 load_dotenv()
@@ -43,295 +63,51 @@ app.config['DEBUG'] = False  # Disable debug mode in production
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size for videos
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instaapp.db'
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 db = SQLAlchemy(app)
-
-# Redis Cache Configuration
-cache = Cache(app, config={
-    'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-    'CACHE_DEFAULT_TIMEOUT': 300
-})
-
-# Initialize rate limiter
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri=os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-)
-limiter.strategy = 'moving-window'
-
-# Prometheus metrics
-REQUESTS = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
-RESPONSE_TIME = Histogram('http_response_time_seconds', 'HTTP response time in seconds', ['endpoint'])
-ERROR_COUNTER = Counter('app_errors_total', 'Total application errors', ['type', 'location'])
-DB_OPERATION_TIME = Histogram('db_operation_time_seconds', 'Database operation time in seconds', ['operation'])
-CACHE_HITS = Counter('cache_hits_total', 'Total cache hits', ['cache_type'])
-CACHE_MISSES = Counter('cache_misses_total', 'Total cache misses', ['cache_type'])
-
-# Application info
-APP_INFO = Info('instagram_scheduler_info', 'Instagram Scheduler application information')
-APP_INFO.info({
-    'version': '2.0.0',
-    'python_version': platform.python_version(),
-    'flask_version': flask.__version__
-})
-
-class APIError(Exception):
-    """Base class for API errors"""
-    def __init__(self, message: str, status_code: int = 400, payload: Optional[Dict[str, Any]] = None):
-        super().__init__()
-        self.message = message
-        self.status_code = status_code
-        self.payload = payload
-
-    def to_dict(self) -> Dict[str, Any]:
-        rv = dict(self.payload or ())
-        rv['message'] = self.message
-        rv['status_code'] = self.status_code
-        return rv
-
-@app.errorhandler(APIError)
-def handle_api_error(error: APIError):
-    """Handle custom API errors"""
-    response = jsonify(error.to_dict())
-    response.status_code = error.status_code
-    return response
-
-@app.errorhandler(Exception)
-def handle_unexpected_error(error: Exception):
-    """Handle unexpected errors"""
-    ERROR_COUNTER.labels(type='unexpected', location=str(error.__class__.__name__)).inc()
-    
-    error_id = hashlib.md5(str(time.time()).encode()).hexdigest()
-    logger.error(f"Unexpected error occurred [ID: {error_id}]: {str(error)}\n{traceback.format_exc()}")
-    
-    return jsonify({
-        'error': 'Ein unerwarteter Fehler ist aufgetreten',
-        'error_id': error_id,
-        'status_code': 500
-    }), 500
-
-def monitor_db_operation(operation_name: str):
-    """Decorator to monitor database operation time"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            start_time = time.time()
-            try:
-                result = f(*args, **kwargs)
-                DB_OPERATION_TIME.labels(operation=operation_name).observe(time.time() - start_time)
-                return result
-            except Exception as e:
-                ERROR_COUNTER.labels(type='database', location=operation_name).inc()
-                raise e
-        return decorated_function
-    return decorator
-
-@app.before_request
-def before_request():
-    """Actions to perform before each request"""
-    request.start_time = time.time()
-    
-    # Rate limiting check
-    if getattr(request.endpoint, '_rate_limiting_complete', False):
-        return
-    
-    # Log request details
-    logger.info(f"Incoming {request.method} request to {request.endpoint}")
-    
-    # Set default headers
-    if request.method == 'OPTIONS':
-        response = app.make_default_options_response()
-        add_security_headers(response)
-        return response
-
-@app.after_request
-def after_request(response):
-    """Actions to perform after each request"""
-    # Record request metrics
-    REQUESTS.labels(
-        method=request.method,
-        endpoint=request.endpoint or 'unknown',
-        status=response.status_code
-    ).inc()
-    
-    # Record response time
-    if hasattr(request, 'start_time'):
-        RESPONSE_TIME.labels(
-            endpoint=request.endpoint or 'unknown'
-        ).observe(time.time() - request.start_time)
-    
-    # Add security headers
-    response = add_security_headers(response)
-    
-    # Log response details
-    logger.info(f"Completed {request.method} {request.endpoint} with status {response.status_code}")
-    
-    return response
-
-class DatabaseOperation:
-    """Context manager for database operations with monitoring"""
-    def __init__(self, operation_name: str):
-        self.operation_name = operation_name
-        self.start_time = None
-    
-    def __enter__(self):
-        self.start_time = time.time()
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        duration = time.time() - self.start_time
-        DB_OPERATION_TIME.labels(operation=self.operation_name).observe(duration)
-        
-        if exc_type is not None:
-            ERROR_COUNTER.labels(
-                type='database',
-                location=f"{self.operation_name}:{exc_type.__name__}"
-            ).inc()
-            logger.error(f"Database error in {self.operation_name}: {str(exc_val)}\n{traceback.format_exc()}")
-            return False
-        return True
-
-@monitor_db_operation('get_user_statistics')
-def get_user_statistics(user_id: int) -> Optional[Dict[str, Any]]:
-    """Get cached user statistics with monitoring"""
-    cache_key_str = cache_key(user_id)
-    cached_value = cache.get(cache_key_str)
-    
-    if cached_value is not None:
-        CACHE_HITS.labels(cache_type='user_statistics').inc()
-        return cached_value
-    
-    CACHE_MISSES.labels(cache_type='user_statistics').inc()
-    
-    with DatabaseOperation('get_user_statistics'):
-        user = User.query.get(user_id)
-        if not user:
-            return None
-        
-        stats = {
-            'total_posts': user.posts.count(),
-            'scheduled_posts': user.posts.filter_by(status='scheduled').count(),
-            'engagement_rate': calculate_engagement_rate(user),
-            'best_posting_times': analyze_best_posting_times(user),
-            'top_performing_hashtags': analyze_top_hashtags(user)
-        }
-        
-        cache.set(cache_key_str, stats, timeout=3600)
-        return stats
-
-@app.route('/api/health')
-def health_check():
-    """Health check endpoint"""
-    try:
-        # Check database connection
-        with DatabaseOperation('health_check'):
-            db.session.execute('SELECT 1')
-        
-        # Check Redis connection
-        cache.set('health_check', 'ok', timeout=1)
-        if cache.get('health_check') != 'ok':
-            raise APIError('Cache check failed', status_code=503)
-        
-        return jsonify({
-            'status': 'healthy',
-            'version': APP_INFO.info()['version'],
-            'timestamp': datetime.utcnow().isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        raise APIError('Service unhealthy', status_code=503, payload={'error': str(e)})
 
 # Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(256), nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime)
-    failed_login_attempts = db.Column(db.Integer, default=0)
-    locked_until = db.Column(db.DateTime)
-    posts = db.relationship('Post', backref='author', lazy='dynamic', cascade='all, delete-orphan')
-    subscription = db.relationship('Subscription', backref='user', uselist=False, cascade='all, delete-orphan')
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    posts = db.relationship('Post', backref='author', lazy=True)
+    subscription = db.relationship('Subscription', backref='user', uselist=False)
 
-    def __init__(self, username, email, password):
+    def __init__(self, username, email):
         self.username = username
         self.email = email
-        self.set_password(password)
-        self.created_at = datetime.utcnow()
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-    def is_account_locked(self):
-        if self.locked_until and self.locked_until > datetime.utcnow():
-            return True
-        return False
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     image_url = db.Column(db.String(200), nullable=False)
-    caption = db.Column(db.String(2200), nullable=False)  # Instagram's maximum caption length
+    caption = db.Column(db.String(200), nullable=False)
     hashtags = db.Column(db.String(200), nullable=False)
-    scheduled_time = db.Column(db.DateTime, nullable=False, index=True)
-    status = db.Column(db.String(50), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    post_type = db.Column(db.String(20), nullable=False, default='feed')
-    engagement_data = db.Column(db.JSON)
+    scheduled_time = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(50), nullable=False)
 
-    def __init__(self, user_id, image_url, caption, hashtags, scheduled_time, status, post_type='feed'):
+    def __init__(self, user_id, image_url, caption, hashtags, scheduled_time, status):
         self.user_id = user_id
         self.image_url = image_url
         self.caption = caption
         self.hashtags = hashtags
         self.scheduled_time = scheduled_time
         self.status = status
-        self.post_type = post_type
-        self.created_at = datetime.utcnow()
-        self.engagement_data = {}
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'image_url': self.image_url,
-            'caption': self.caption,
-            'hashtags': self.hashtags,
-            'scheduled_time': self.scheduled_time.isoformat(),
-            'status': self.status,
-            'created_at': self.created_at.isoformat(),
-            'post_type': self.post_type,
-            'engagement_data': self.engagement_data
-        }
 
 class Subscription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
-    plan_type = db.Column(db.String(20), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    plan_type = db.Column(db.String(20), nullable=False)  # 'monthly', 'sixmonth', 'yearly'
     start_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    end_date = db.Column(db.DateTime, nullable=False, index=True)
-    active = db.Column(db.Boolean, default=True, index=True)
+    end_date = db.Column(db.DateTime, nullable=False)
+    active = db.Column(db.Boolean, default=True)
     price = db.Column(db.Float, nullable=False)
-    payment_id = db.Column(db.String(100), unique=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    def __init__(self, user_id, plan_type, price, payment_id=None):
+    def __init__(self, user_id, plan_type, price):
         self.user_id = user_id
         self.plan_type = plan_type
         self.price = price
-        self.payment_id = payment_id
         self.start_date = datetime.utcnow()
-        self.created_at = self.start_date
         
         # Set end date based on plan type
         if plan_type == 'monthly':
@@ -341,38 +117,6 @@ class Subscription(db.Model):
         elif plan_type == 'yearly':
             self.end_date = self.start_date + timedelta(days=365)
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'plan_type': self.plan_type,
-            'start_date': self.start_date.isoformat(),
-            'end_date': self.end_date.isoformat(),
-            'active': self.active,
-            'price': self.price,
-            'created_at': self.created_at.isoformat()
-        }
-
-# Configure logging with more detailed format
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('app.log')
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Custom error handler for database errors
-def handle_db_error(e):
-    logger.error(f"Database error occurred: {str(e)}")
-    db.session.rollback()
-    return jsonify({'error': 'Ein Datenbankfehler ist aufgetreten. Bitte versuchen Sie es später erneut.'}), 500
-
-# Register error handler
-app.register_error_handler(SQLAlchemyError, handle_db_error)
-
 # Create tables on startup
 with app.app_context():
     db.create_all()
@@ -380,15 +124,19 @@ with app.app_context():
     # Create test user if it doesn't exist
     test_user = User.query.filter_by(username='testuser').first()
     if not test_user:
-        test_user = User(username='testuser', email='test@example.com', password='testpassword123')
+        test_user = User(username='testuser', email='test@example.com')
         db.session.add(test_user)
         db.session.commit()
-        logger.info('Test user created successfully!')
+        app.logger.info('Test user created successfully!')
     
-    logger.info('Database tables created successfully!')
+    app.logger.info('Database tables created successfully!')
 
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Logging konfigurieren
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # File Upload Configuration
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -532,21 +280,11 @@ def calculate_statistics(posts):
 
     return stats
 
-def sanitize_input(text):
-    """Sanitize user input to prevent XSS attacks"""
-    return bleach.clean(text, strip=True) if text else text
-
-def validate_file_type(filename):
-    """Validate file type and extension"""
-    if not filename or '.' not in filename:
-        return False
-    ext = filename.rsplit('.', 1)[1].lower()
-    return ext in ALLOWED_IMAGE_EXTENSIONS or ext in ALLOWED_VIDEO_EXTENSIONS
-
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
+        if 'user_info' not in session:
+            flash('Bitte melden Sie sich zuerst an', 'error')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -688,6 +426,7 @@ def facebook_callback():
 
 @app.route('/api/schedule-post', methods=['POST'])
 @login_required
+@limiter.limit("10 per minute")
 def api_schedule_post():
     try:
         data = request.json
@@ -740,12 +479,15 @@ def generate_post_function():
     return render_template('generate_post.html')
 
 @app.route('/')
+@cache.cached(timeout=300)
 def index():
     if 'user_info' not in session:
         session['user_info'] = FAKE_PROFILE.copy()
     return render_template('index.html')
 
 @app.route('/dashboard')
+@login_required
+@cache.cached(timeout=60, unless=lambda: True)  # Cache unless user is logged in
 def dashboard():
     user_info = session.get('user_info', FAKE_PROFILE.copy())
     posts = user_info.get('media', {}).get('data', [])
@@ -762,6 +504,8 @@ def scheduler():
     return render_template('scheduler.html')
 
 @app.route('/schedule_posts', methods=['POST'])
+@login_required
+@limiter.limit("30 per minute")
 def schedule_posts():
     try:
         if 'user_info' not in session:
@@ -882,9 +626,8 @@ def schedule_posts():
         flash(f'Fehler beim Planen der Posts: {str(e)}', 'error')
         return redirect(url_for('scheduler'))
 
-@app.route('/schedule_post_legacy', methods=['POST'])
-@login_required
-def schedule_post_legacy():
+@app.route('/schedule_post', methods=['POST'])
+def schedule_post():
     try:
         logger.debug('Received schedule_post request')
         logger.debug(f'Form data: {request.form}')
@@ -948,35 +691,10 @@ def schedule_post_legacy():
         flash(f'Fehler beim Planen des Beitrags: {str(e)}', 'error')
         return redirect(url_for('scheduler'))
 
-@limiter.limit("5 per minute")
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        username = sanitize_input(request.form.get('username'))
-        password = request.form.get('password')
-        
-        user = User.query.filter_by(username=username).first()
-        
-        if user and user.is_account_locked():
-            flash('Account is temporarily locked. Please try again later.', 'error')
-            return redirect(url_for('login'))
-            
-        if user and user.check_password(password):
-            user.failed_login_attempts = 0
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-            
-            session['user_id'] = user.id
-            session.permanent = True
-            return redirect(url_for('dashboard'))
-        else:
-            if user:
-                user.failed_login_attempts += 1
-                if user.failed_login_attempts >= 5:
-                    user.locked_until = datetime.utcnow() + timedelta(minutes=15)
-                db.session.commit()
-            flash('Invalid username or password', 'error')
-            
+    if 'logged_in' in session:
+        return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 @app.route('/logout')
@@ -986,64 +704,48 @@ def logout():
     return redirect(url_for('login'))
 
 @app.errorhandler(413)
-def too_large(e):
-    flash('File is too large. Maximum size is 100MB.', 'error')
-    return redirect(url_for('scheduler'))
+def request_entity_too_large(error):
+    return jsonify({'error': 'File too large'}), 413
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify({'error': f"Rate limit exceeded. {e.description}"}), 429
 
 @app.errorhandler(500)
-def internal_error(e):
-    logger.error(f'Internal Server Error: {str(e)}')
-    flash('An internal error occurred. Please try again later.', 'error')
-    return redirect(url_for('index'))
+def internal_server_error(error):
+    app.logger.error(f'Server Error: {str(error)}')
+    return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/data-deletion')
-def data_deletion():
-    return render_template('data_deletion.html')
-
-@app.route('/privacy-policy')
-def privacy_policy():
-    return render_template('privacy-policy.html')
-
-@app.route('/terms')
-def terms():
-    return render_template('terms.html')
-
-@app.route('/calendar')
-@login_required
-def calendar():
-    user_info = session.get('user_info', FAKE_PROFILE.copy())
-    posts = user_info.get('media', {}).get('data', [])
-    
-    # Group posts by date for calendar view
-    posts_by_date = {}
-    for post in posts:
-        schedule_time = datetime.fromisoformat(post['timestamp'])
-        date_key = schedule_time.date().isoformat()
-        if date_key not in posts_by_date:
-            posts_by_date[date_key] = []
-        posts_by_date[date_key].append({
-            **post,
-            'time': schedule_time.strftime('%H:%M'),
-            'format_name': POST_FORMATS[post['post_format']]['name']
-        })
-
-    return render_template('calendar.html', 
-                         user_info=user_info,
-                         posts_by_date=posts_by_date,
-                         current_month=datetime.now().strftime('%Y-%m'))
-
-@app.route('/analytics')
-@login_required
-def analytics():
-    return render_template('analytics.html')
-
-@app.route('/targeting')
-@login_required
-def targeting():
-    return render_template('targeting.html')
+def optimize_image(image_file):
+    try:
+        img = Image.open(image_file)
+        
+        # Convert RGBA to RGB if necessary
+        if img.mode == 'RGBA':
+            img = img.convert('RGB')
+            
+        # Calculate new dimensions while maintaining aspect ratio
+        max_size = 1920
+        ratio = min(max_size/float(img.size[0]), max_size/float(img.size[1]))
+        new_size = tuple([int(x*ratio) for x in img.size])
+        
+        # Resize image if larger than max_size
+        if max(img.size) > max_size:
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+            
+        # Save with optimal quality
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=85, optimize=True)
+        output.seek(0)
+        return output
+        
+    except Exception as e:
+        app.logger.error(f"Error optimizing image: {str(e)}")
+        return None
 
 @app.route('/api/generate-content', methods=['POST'])
 @login_required
+@limiter.limit("5 per minute")
 def generate_content():
     if not HUGGINGFACE_API_KEY:
         app.logger.error("Hugging Face API key is missing")
@@ -1303,204 +1005,10 @@ def subscribe():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
-@app.after_request
-def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:;"
-    return response
-
-def cache_key(*args, **kwargs):
-    """Generate a cache key based on the function arguments"""
-    key_parts = [str(arg) for arg in args]
-    key_parts.extend(f"{k}:{v}" for k, v in sorted(kwargs.items()))
-    return hashlib.md5(":".join(key_parts).encode()).hexdigest()
-
-def cached_with_timeout(timeout=300):
-    """Custom caching decorator with timeout"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            cache_key_str = cache_key(*args, **kwargs)
-            cached_value = cache.get(cache_key_str)
-            if cached_value is not None:
-                return cached_value
-            value = f(*args, **kwargs)
-            cache.set(cache_key_str, value, timeout=timeout)
-            return value
-        return decorated_function
-    return decorator
-
-@cached_with_timeout(timeout=3600)
-def get_user_statistics(user_id):
-    """Get cached user statistics"""
-    user = User.query.get(user_id)
-    if not user:
-        return None
-    
-    stats = {
-        'total_posts': user.posts.count(),
-        'scheduled_posts': user.posts.filter_by(status='scheduled').count(),
-        'engagement_rate': calculate_engagement_rate(user),
-        'best_posting_times': analyze_best_posting_times(user),
-        'top_performing_hashtags': analyze_top_hashtags(user)
-    }
-    return stats
-
-def calculate_engagement_rate(user):
-    """Calculate user's average engagement rate"""
-    posts = user.posts.all()
-    if not posts:
-        return 0
-    
-    total_engagement = sum(
-        sum(post.engagement_data.get(metric, 0) for metric in ['likes', 'comments', 'shares'])
-        for post in posts
-    )
-    return total_engagement / len(posts) if posts else 0
-
-def analyze_best_posting_times(user):
-    """Analyze best performing posting times"""
-    posts = user.posts.all()
-    performance_by_hour = {i: {'count': 0, 'engagement': 0} for i in range(24)}
-    
-    for post in posts:
-        if post.engagement_data:
-            hour = post.scheduled_time.hour
-            engagement = sum(post.engagement_data.get(metric, 0) for metric in ['likes', 'comments', 'shares'])
-            performance_by_hour[hour]['count'] += 1
-            performance_by_hour[hour]['engagement'] += engagement
-    
-    # Calculate average engagement per hour
-    best_hours = []
-    for hour, data in performance_by_hour.items():
-        if data['count'] > 0:
-            avg_engagement = data['engagement'] / data['count']
-            best_hours.append((hour, avg_engagement))
-    
-    return sorted(best_hours, key=lambda x: x[1], reverse=True)[:5]
-
-def analyze_top_hashtags(user):
-    """Analyze most successful hashtags"""
-    posts = user.posts.all()
-    hashtag_performance = {}
-    
-    for post in posts:
-        if post.hashtags and post.engagement_data:
-            hashtags = [tag.strip() for tag in post.hashtags.split(',')]
-            engagement = sum(post.engagement_data.get(metric, 0) for metric in ['likes', 'comments', 'shares'])
-            
-            for hashtag in hashtags:
-                if hashtag not in hashtag_performance:
-                    hashtag_performance[hashtag] = {'count': 0, 'total_engagement': 0}
-                hashtag_performance[hashtag]['count'] += 1
-                hashtag_performance[hashtag]['total_engagement'] += engagement
-    
-    # Calculate average engagement per hashtag
-    hashtag_metrics = []
-    for hashtag, data in hashtag_performance.items():
-        if data['count'] > 0:
-            avg_engagement = data['total_engagement'] / data['count']
-            hashtag_metrics.append((hashtag, avg_engagement))
-    
-    return sorted(hashtag_metrics, key=lambda x: x[1], reverse=True)[:10]
-
-@app.route('/api/analytics/user/<int:user_id>')
-@login_required
-@limiter.limit("30 per minute")
-@cached_with_timeout(timeout=300)
-def user_analytics(user_id):
-    """Get cached user analytics"""
-    if 'user_id' not in session or session['user_id'] != user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    stats = get_user_statistics(user_id)
-    if not stats:
-        return jsonify({'error': 'User not found'}), 404
-    
-    return jsonify(stats)
-
-@app.route('/api/posts/<int:post_id>')
-@login_required
-@limiter.limit("60 per minute")
-@cached_with_timeout(timeout=60)
-def get_post(post_id):
-    """Get cached post data"""
-    post = Post.query.get_or_404(post_id)
-    if post.user_id != session['user_id']:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    return jsonify(post.to_dict())
-
-@app.route('/api/posts/schedule', methods=['POST'])
-@login_required
-@limiter.limit("10 per minute")
-def schedule_post():
-    """Schedule a new post with optimized timing"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        # Validate and sanitize input
-        caption = sanitize_input(data.get('caption', ''))
-        hashtags = sanitize_input(data.get('hashtags', ''))
-        scheduled_time = data.get('scheduled_time')
-        
-        if not all([caption, hashtags, scheduled_time]):
-            return jsonify({'error': 'Missing required fields'}), 400
-        
-        # Validate schedule time
-        try:
-            scheduled_dt = datetime.fromisoformat(scheduled_time)
-        except ValueError:
-            return jsonify({'error': 'Invalid datetime format'}), 400
-        
-        # Get user's best posting times
-        user_stats = get_user_statistics(session['user_id'])
-        best_times = user_stats.get('best_posting_times', [])
-        
-        # Suggest optimal posting time if available
-        if best_times:
-            best_hour = best_times[0][0]
-            suggested_time = scheduled_dt.replace(hour=best_hour)
-            if suggested_time > datetime.now():
-                scheduled_dt = suggested_time
-        
-        # Create new post
-        post = Post(
-            user_id=session['user_id'],
-            image_url=data.get('image_url', ''),
-            caption=caption,
-            hashtags=hashtags,
-            scheduled_time=scheduled_dt,
-            status='scheduled',
-            post_type=data.get('post_type', 'feed')
-        )
-        
-        db.session.add(post)
-        db.session.commit()
-        
-        # Invalidate relevant caches
-        cache.delete(cache_key(session['user_id']))
-        
-        return jsonify({
-            'message': 'Post scheduled successfully',
-            'post': post.to_dict(),
-            'suggested_time': scheduled_dt.isoformat()
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error scheduling post: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
 if __name__ == '__main__':
     # Use production server when deployed
     if os.environ.get('RENDER'):
         app.run()
     else:
         # Use debug mode locally
-        app.run(debug=True)
+        app.run(debug=True, use_reloader=True)
