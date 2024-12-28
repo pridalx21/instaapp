@@ -5,67 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Datenlöschung - Instagram Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        .container {
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-        }
-        h2, h3 {
-            color: #666;
-            margin-top: 25px;
-        }
-        ol, ul {
-            margin: 15px 0;
-            padding-left: 20px;
-        }
-        li {
-            margin: 10px 0;
-            line-height: 1.5;
-        }
-        .contact-info {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Anleitung zur Datenlöschung</h1>
-        
+        <h1>Datenlöschung</h1>
+
         <h2>Wie Sie Ihre Daten löschen können</h2>
-        
-        <h3>Option 1: Direkt in der App</h3>
+        <p>Sie haben mehrere Möglichkeiten, Ihre bei uns gespeicherten Daten löschen zu lassen:</p>
+
+        <h3>1. Über Ihr Benutzerkonto</h3>
+        <p>Wenn Sie eingeloggt sind, können Sie in Ihren Kontoeinstellungen die Option "Konto löschen" wählen. Dies wird alle Ihre Daten permanent löschen.</p>
+
+        <h3>2. Per E-Mail</h3>
+        <p>Senden Sie eine E-Mail an mischapridal@gmail.com mit dem Betreff "Datenlöschung". Bitte geben Sie Ihre bei uns registrierte E-Mail-Adresse an.</p>
+
+        <h3>3. Über das Kontaktformular</h3>
+        <form action="/request_deletion" method="POST" class="deletion-form">
+            <div class="form-group">
+                <label for="email">Ihre E-Mail-Adresse:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="reason">Grund für die Löschung (optional):</label>
+                <textarea id="reason" name="reason" rows="4"></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger">Löschung beantragen</button>
+        </form>
+
+        <h2>Was wird gelöscht?</h2>
+        <p>Bei einer Datenlöschung werden folgende Daten permanent entfernt:</p>
+        <ul>
+            <li>Ihr Benutzerkonto und alle zugehörigen Informationen</li>
+            <li>Ihre gespeicherten Posts und Zeitpläne</li>
+            <li>Ihre Verbindungen zu Facebook und Instagram</li>
+            <li>Alle Statistiken und Analysen</li>
+        </ul>
+
+        <h2>Zeitrahmen</h2>
+        <p>Nach Eingang Ihres Löschantrags werden Ihre Daten innerhalb von 30 Tagen vollständig gelöscht. Sie erhalten eine Bestätigung per E-Mail, sobald der Löschvorgang abgeschlossen ist.</p>
+
+        <h2>Facebook-Daten</h2>
+        <p>Bitte beachten Sie, dass Sie Ihre Facebook-Berechtigungen separat in Ihren Facebook-Einstellungen widerrufen müssen. Hier finden Sie eine Anleitung dazu:</p>
         <ol>
-            <li>Melden Sie sich in Ihrem Account an</li>
-            <li>Gehen Sie zu den Account-Einstellungen</li>
-            <li>Klicken Sie auf "Account löschen"</li>
-            <li>Bestätigen Sie die Löschung</li>
+            <li>Gehen Sie zu Ihren Facebook-Einstellungen</li>
+            <li>Wählen Sie "Apps und Websites"</li>
+            <li>Suchen Sie nach "Instagram Manager"</li>
+            <li>Klicken Sie auf "Entfernen"</li>
         </ol>
 
-        <h3>Option 2: Per E-Mail</h3>
-        <ol>
-            <li>Senden Sie eine E-Mail an support@instaapp-cmu.onrender.com</li>
-            <li>Betreff: "Datenlöschung beantragen"</li>
-            <li>Geben Sie Ihren Benutzernamen an</li>
-            <li>Wir werden Ihre Anfrage innerhalb von 30 Tagen bearbeiten</li>
-        </ol>
-
-        <div class="contact-info">
-            <h3>Kontakt für Datenschutzfragen:</h3>
-            <p>E-Mail: privacy@instaapp-cmu.onrender.com</p>
-            <p>Telefon: +49 (0) 123 456789</p>
-            <p>Adresse: Musterstraße 123, 12345 Berlin</p>
-        </div>
+        <p>Bei Fragen zur Datenlöschung können Sie uns jederzeit kontaktieren.</p>
     </div>
+
+    <style>
+        .deletion-form {
+            max-width: 500px;
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+    </style>
 </body>
 </html>

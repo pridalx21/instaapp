@@ -1244,6 +1244,17 @@ def terms():
 def data_deletion():
     return render_template('data_deletion.html')
 
+@app.route('/request_deletion', methods=['POST'])
+def request_deletion():
+    email = request.form.get('email')
+    reason = request.form.get('reason')
+    
+    # Hier können Sie die Löschanfrage verarbeiten
+    # z.B. E-Mail senden, in Datenbank speichern etc.
+    
+    flash('Ihre Löschanfrage wurde erfolgreich eingereicht. Wir werden sie innerhalb von 30 Tagen bearbeiten.', 'success')
+    return redirect(url_for('data_deletion'))
+
 # Public routes that don't require authentication
 PUBLIC_ROUTES = ['privacy', 'terms', 'data_deletion']
 
