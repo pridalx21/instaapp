@@ -28,6 +28,7 @@ from prometheus_client import Counter, Histogram, Info
 import time
 import traceback
 from typing import Optional, Dict, Any
+import platform
 
 # Load environment variables from .env file
 load_dotenv()
