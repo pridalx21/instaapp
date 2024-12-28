@@ -20,6 +20,7 @@ from flask_limiter.util import get_remote_address
 from flask_compress import Compress
 from apscheduler.schedulers.background import BackgroundScheduler
 from dateutil import parser
+from dateutil import parser
 
 # Load environment variables from .env file
 load_dotenv()
