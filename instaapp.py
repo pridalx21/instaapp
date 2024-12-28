@@ -578,31 +578,73 @@ def logout():
 def dashboard():
     try:
         # Get user info from session
-        user_info = session.get('user_info', {})
+        user_info = session.get('user_info')
+        if not user_info:
+            app.logger.error("No user info in session")
+            flash('Bitte loggen Sie sich ein.', 'error')
+            return redirect(url_for('login'))
+            
+        # Verify Facebook token is still valid
+        try:
+            response = requests.get('https://graph.facebook.com/v19.0/me', params={
+                'access_token': user_info.get('facebook_token')
+            })
+            if response.status_code != 200:
+                app.logger.error(f"Facebook token validation failed: {response.text}")
+                flash('Ihre Facebook-Sitzung ist abgelaufen. Bitte loggen Sie sich erneut ein.', 'error')
+                return redirect(url_for('login'))
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"Facebook API error: {str(e)}")
+            flash('Fehler bei der Verbindung zu Facebook. Bitte versuchen Sie es erneut.', 'error')
+            return redirect(url_for('login'))
         
         # Get posts from database
-        posts = []
-        if 'user_id' in user_info:
-            posts = Post.query.filter_by(user_id=user_info['user_id']).all()
+        try:
+            posts = Post.query.filter_by(user_id=user_info['user_id']).order_by(Post.scheduled_time.desc()).all()
+        except Exception as e:
+            app.logger.error(f"Database error while fetching posts: {str(e)}")
+            posts = []
+            flash('Fehler beim Laden der Posts. Bitte versuchen Sie es später erneut.', 'error')
         
         # Calculate statistics
-        total_posts = len(posts)
-        scheduled_posts = len([p for p in posts if p.scheduled_time and p.scheduled_time > datetime.now()])
-        published_posts = len([p for p in posts if p.status == 'published'])
-        
+        current_time = datetime.now()
         statistics = {
-            'total_posts': total_posts,
-            'scheduled_posts': scheduled_posts,
-            'published_posts': published_posts
+            'total_posts': len(posts),
+            'scheduled_posts': len([p for p in posts if p.scheduled_time and p.scheduled_time > current_time]),
+            'published_posts': len([p for p in posts if p.status == 'published']),
+            'failed_posts': len([p for p in posts if p.status == 'failed']),
+            'pending_posts': len([p for p in posts if p.status == 'pending'])
         }
+        
+        # Get Instagram account info if available
+        instagram_info = None
+        if user_info.get('facebook_token'):
+            try:
+                response = requests.get(
+                    'https://graph.facebook.com/v19.0/me/accounts',
+                    params={
+                        'access_token': user_info['facebook_token'],
+                        'fields': 'instagram_business_account{id,name,username,profile_picture_url}'
+                    }
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    for page in data.get('data', []):
+                        if 'instagram_business_account' in page:
+                            instagram_info = page['instagram_business_account']
+                            break
+            except Exception as e:
+                app.logger.error(f"Error fetching Instagram info: {str(e)}")
         
         return render_template('dashboard.html', 
                              user_info=user_info,
                              statistics=statistics,
-                             posts=posts)
+                             posts=posts,
+                             instagram_info=instagram_info)
                              
     except Exception as e:
         app.logger.error(f"Dashboard error: {str(e)}")
+        flash('Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.', 'error')
         return render_template('500.html'), 500
 
 @app.route('/scheduler')
