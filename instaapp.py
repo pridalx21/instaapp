@@ -88,12 +88,75 @@ else:
     })
 cache.init_app(app)
 
-# Initialize scheduler with proper configuration
-scheduler = BackgroundScheduler()
-scheduler.add_job(check_scheduled_posts, 'interval', minutes=1)
+# Scheduler function to check and publish scheduled posts
+def check_scheduled_posts():
+    with app.app_context():
+        try:
+            # Get all scheduled posts that are due
+            current_time = datetime.now()
+            scheduled_posts = Post.query.filter(
+                Post.scheduled_time <= current_time,
+                Post.status == 'scheduled'
+            ).all()
 
-# Load environment variables from .env file
-load_dotenv()
+            for post in scheduled_posts:
+                try:
+                    # Get user info from database
+                    user_info = User.query.get(post.user_id)
+                    if not user_info or not user_info.facebook_token:
+                        app.logger.error(f"No valid token for user {post.user_id}")
+                        continue
+
+                    # Post to Instagram
+                    response = requests.post(
+                        f'https://graph.facebook.com/v19.0/{post.instagram_account_id}/media',
+                        params={
+                            'access_token': user_info.facebook_token,
+                            'image_url': post.media_url,
+                            'caption': post.caption
+                        }
+                    )
+                    
+                    if response.status_code == 200:
+                        creation_id = response.json().get('id')
+                        
+                        # Publish the container
+                        publish_response = requests.post(
+                            f'https://graph.facebook.com/v19.0/{post.instagram_account_id}/media_publish',
+                            params={
+                                'access_token': user_info.facebook_token,
+                                'creation_id': creation_id
+                            }
+                        )
+                        
+                        if publish_response.status_code == 200:
+                            post.status = 'published'
+                            post.published_time = current_time
+                            db.session.commit()
+                            app.logger.info(f"Successfully published post {post.id}")
+                        else:
+                            post.status = 'failed'
+                            post.error_message = f"Publishing failed: {publish_response.text}"
+                            db.session.commit()
+                            app.logger.error(f"Failed to publish post {post.id}: {publish_response.text}")
+                    else:
+                        post.status = 'failed'
+                        post.error_message = f"Media creation failed: {response.text}"
+                        db.session.commit()
+                        app.logger.error(f"Failed to create media for post {post.id}: {response.text}")
+
+                except Exception as e:
+                    post.status = 'failed'
+                    post.error_message = str(e)
+                    db.session.commit()
+                    app.logger.error(f"Error processing post {post.id}: {str(e)}")
+
+        except Exception as e:
+            app.logger.error(f"Scheduler error: {str(e)}")
+
+# Initialize scheduler
+scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_job(check_scheduled_posts, 'interval', minutes=1)
 
 # Base URL configuration
 BASE_URL = 'https://instaapp-cmu.onrender.com' if os.environ.get('RENDER') else 'http://localhost:5000'
