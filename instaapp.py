@@ -51,6 +51,9 @@ app.config.update(
     TEMPLATES_AUTO_RELOAD=True
 )
 
+# Base URL Configuration
+BASE_URL = os.getenv('BASE_URL', 'https://instaapp-zamd.onrender.com')
+
 # Database configuration
 if os.environ.get('RENDER'):
     # Production database (PostgreSQL on Render.com)
@@ -157,9 +160,6 @@ def check_scheduled_posts():
 # Initialize scheduler
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(check_scheduled_posts, 'interval', minutes=1)
-
-# Base URL configuration
-BASE_URL = 'https://instaapp-cmu.onrender.com' if os.environ.get('RENDER') else 'http://localhost:5000'
 
 # Privacy and Terms URLs
 PRIVACY_POLICY_URL = f'{BASE_URL}/privacy'
