@@ -1,1 +1,1 @@
-web: gunicorn instaapp:app --log-file -
+web: gunicorn instaapp:app --bind 0.0.0.0:$PORT --workers 4 --threads 2 --timeout 120
