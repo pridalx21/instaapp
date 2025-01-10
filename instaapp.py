@@ -457,8 +457,9 @@ FACEBOOK_REDIRECT_URI = f'{BASE_URL}/facebook/callback'
 @app.route('/facebook/login')
 def facebook_login():
     # Generate a random state parameter to prevent CSRF attacks
-    state = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    state = secrets.token_urlsafe(32)  
     session['fb_state'] = state
+    session.modified = True  
     
     # Facebook OAuth URL
     fb_oauth_url = 'https://www.facebook.com/v19.0/dialog/oauth'
@@ -466,89 +467,49 @@ def facebook_login():
         'client_id': FACEBOOK_APP_ID,
         'redirect_uri': FACEBOOK_REDIRECT_URI,
         'state': state,
-        'scope': 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,public_profile'
+        'scope': 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,public_profile',
+        'response_type': 'code'  
     }
+    
+    # Debug-Logging
+    app.logger.info(f"Starting Facebook OAuth flow with state: {state}")
+    app.logger.info(f"Redirect URI: {FACEBOOK_REDIRECT_URI}")
     
     return redirect(f"{fb_oauth_url}?{urlencode(params)}")
 
-@app.route('/facebook/callback', methods=['GET', 'POST'])
+@app.route('/facebook/callback')
 def facebook_callback():
-    if request.method == 'POST':
-        try:
-            data = request.get_json()
-            access_token = data.get('access_token')
-            fb_user_id = data.get('user_id')
-            
-            if not all([access_token, fb_user_id]):
-                app.logger.error("Missing required auth data")
-                return jsonify({'success': False, 'error': 'Fehlende Authentifizierungsdaten'})
-            
-            # Get user info from Facebook
-            try:
-                user_info_url = 'https://graph.facebook.com/v19.0/me'
-                response = requests.get(user_info_url, params={
-                    'access_token': access_token,
-                    'fields': 'id,name,email'
-                })
-                response.raise_for_status()
-                fb_user_info = response.json()
-                
-                # Verify user ID matches
-                if fb_user_info['id'] != fb_user_id:
-                    raise ValueError("User ID mismatch")
-                
-                # Find or create user
-                user = User.query.filter_by(facebook_id=fb_user_id).first()
-                if not user:
-                    # Generate a random password for the user
-                    random_password = secrets.token_urlsafe(32)
-                    user = User(
-                        username=fb_user_info.get('name'),
-                        email=fb_user_info.get('email'),
-                        facebook_id=fb_user_id,
-                        password_hash=generate_password_hash(random_password)
-                    )
-                    db.session.add(user)
-                
-                # Update Facebook token
-                user.facebook_token = access_token
-                db.session.commit()
-                
-                # Log the user in
-                session['user_info'] = {
-                    'username': user.username,
-                    'user_id': user.id
-                }
-                
-                return jsonify({'success': True})
-                
-            except requests.exceptions.RequestException as e:
-                app.logger.error(f"Facebook API error: {str(e)}")
-                return jsonify({'success': False, 'error': 'Fehler beim Abrufen der Benutzerinformationen'})
-                
-        except Exception as e:
-            app.logger.error(f'Facebook callback error: {str(e)}')
-            return jsonify({'success': False, 'error': str(e)})
+    error = request.args.get('error')
+    if error:
+        app.logger.error(f"Facebook OAuth error: {error}")
+        flash(f"Facebook-Anmeldefehler: {error}", "error")
+        return redirect(url_for('login'))
 
-    # Handle GET request (initial OAuth callback)
-    if 'error' in request.args:
-        flash(f"Authorization failed: {request.args.get('error_description', 'Unknown error')}", 'error')
+    code = request.args.get('code')
+    state = request.args.get('state')
+    
+    # Debug-Logging
+    app.logger.info(f"Received callback with state: {state}")
+    app.logger.info(f"Session state: {session.get('fb_state')}")
+    
+    if not state or state != session.get('fb_state'):
+        app.logger.error("State mismatch or missing")
+        flash("Sicherheitsfehler bei der Anmeldung", "error")
         return redirect(url_for('login'))
     
-    # Verify state parameter to prevent CSRF attacks
-    if request.args.get('state') != session.get('fb_state'):
-        flash('Invalid state parameter. Please try again.', 'error')
+    if not code:
+        app.logger.error("No code received from Facebook")
+        flash("Keine Autorisierung von Facebook erhalten", "error")
         return redirect(url_for('login'))
     
-    # Exchange code for access token
     try:
-        code = request.args.get('code')
+        # Exchange code for access token
         token_url = 'https://graph.facebook.com/v19.0/oauth/access_token'
         response = requests.get(token_url, params={
             'client_id': FACEBOOK_APP_ID,
             'client_secret': FACEBOOK_APP_SECRET,
-            'redirect_uri': FACEBOOK_REDIRECT_URI,
-            'code': code
+            'code': code,
+            'redirect_uri': FACEBOOK_REDIRECT_URI
         })
         response.raise_for_status()
         token_data = response.json()
@@ -560,37 +521,30 @@ def facebook_callback():
             'fields': 'id,name,email'
         })
         response.raise_for_status()
-        fb_user_info = response.json()
+        user_info = response.json()
         
         # Find or create user
-        user = User.query.filter_by(facebook_id=fb_user_info['id']).first()
+        user = User.query.filter_by(facebook_id=user_info['id']).first()
         if not user:
-            # Generate a random password for the user
-            random_password = secrets.token_urlsafe(32)
             user = User(
-                username=fb_user_info.get('name'),
-                email=fb_user_info.get('email'),
-                facebook_id=fb_user_info['id'],
-                password_hash=generate_password_hash(random_password)
+                username=user_info.get('name'),
+                email=user_info.get('email', f"{user_info['id']}@facebook.com"),
+                facebook_id=user_info['id']
             )
             db.session.add(user)
+            db.session.commit()
         
-        # Update Facebook token
-        user.facebook_token = token_data['access_token']
-        db.session.commit()
+        # Update session
+        session['user_id'] = user.id
+        session['facebook_token'] = token_data['access_token']
+        session.modified = True
         
-        # Log the user in
-        session['user_info'] = {
-            'username': user.username,
-            'user_id': user.id
-        }
-        
-        flash('Successfully connected to Facebook!', 'success')
+        flash("Erfolgreich mit Facebook angemeldet!", "success")
         return redirect(url_for('dashboard'))
         
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f'Facebook OAuth error: {str(e)}')
-        flash('Failed to connect to Facebook. Please try again.', 'error')
+    except Exception as e:
+        app.logger.error(f"Error during Facebook OAuth: {str(e)}")
+        flash("Fehler bei der Facebook-Anmeldung", "error")
         return redirect(url_for('login'))
 
 @app.route('/api/schedule-post', methods=['POST'])
