@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -22,6 +21,9 @@ wheels/
 *.egg
 
 # Virtual Environment
+.env
+.venv
+env/
 venv/
 ENV/
 
@@ -31,12 +33,19 @@ ENV/
 *.swp
 *.swo
 
-# Application specific
-static/uploads/
+# Logs
 *.log
-instance/
-.webassets-cache
+app.log
 
-# Environment variables
-.env
-.env.*
+# Database
+instance/
+*.db
+*.sqlite3
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Local development
+.DS_Store
+Thumbs.db

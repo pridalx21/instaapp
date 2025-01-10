@@ -14,7 +14,7 @@ services:
       - key: RENDER
         value: true
       - key: BASE_URL
-        value: https://instaapp.onrender.com
+        value: https://instaapp-crnu.onrender.com
       - key: FACEBOOK_APP_ID
         sync: false
       - key: FACEBOOK_APP_SECRET

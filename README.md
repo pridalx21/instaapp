@@ -1,52 +1,76 @@
-# Instagram Manager App
+# InstaApp - Instagram Post Manager
 
-Eine Flask-Anwendung zur Verwaltung von Instagram-Posts mit automatischer Planung und KI-gestützter Inhaltsgenerierung.
+Ein professioneller Instagram Post Manager mit KI-gestützter Inhaltsgenerierung und automatischer Planung.
 
 ## Features
 
-- Automatische Post-Planung
-- KI-gestützte Bildgenerierung
-- Hashtag-Vorschläge
-- Statistiken und Analytics
-- Benutzerauthentifizierung
+- 🤖 KI-gestützte Bildgenerierung mit Stable Diffusion
+- 📝 Automatische Hashtag- und Caption-Generierung
+- 📅 Intelligente Posting-Zeitplanung
+- 📊 Performance-Analyse und Statistiken
+- 🔐 Sicherer Facebook/Instagram Login
+- 💼 Verschiedene Abonnement-Optionen
 
-## Deployment auf Render.com
+## Technologie-Stack
 
-1. Erstellen Sie ein Konto auf [Render.com](https://render.com)
-2. Verbinden Sie Ihr GitHub-Repository
-3. Klicken Sie auf "New Web Service"
-4. Wählen Sie Ihr Repository aus
-5. Konfigurieren Sie die folgenden Umgebungsvariablen:
-   - `FLASK_ENV`: production
-   - `SECRET_KEY`: [Ihr sicherer Schlüssel]
-   - `DATABASE_URL`: [Ihre Datenbank-URL]
-   - `HUGGINGFACE_API_KEY`: [Ihr Hugging Face API-Schlüssel]
+- **Backend**: Python/Flask
+- **Datenbank**: SQLite (Entwicklung) / PostgreSQL (Produktion)
+- **KI-Modelle**: Hugging Face (Zephyr, Stable Diffusion)
+- **Authentifizierung**: Facebook OAuth
+- **Hosting**: Render.com
 
-Die Anwendung wird automatisch auf Render.com bereitgestellt und ist unter der zugewiesenen Domain erreichbar.
+## Installation
 
-## Lokale Entwicklung
+1. Repository klonen:
+   ```bash
+   git clone https://github.com/pridalx21/instaapp.git
+   cd instaapp
+   ```
 
-1. Klonen Sie das Repository:
-```bash
-git clone https://github.com/[username]/instaapp.git
-cd instaapp
-```
+2. Virtuelle Umgebung erstellen und aktivieren:
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate  # Windows
+   source .venv/bin/activate  # Linux/Mac
+   ```
 
-2. Erstellen Sie eine virtuelle Umgebung:
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Für Linux/Mac
-.venv\Scripts\activate     # Für Windows
-```
+3. Abhängigkeiten installieren:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. Installieren Sie die Abhängigkeiten:
-```bash
-pip install -r requirements.txt
-```
+4. Umgebungsvariablen konfigurieren:
+   ```bash
+   # .env Datei erstellen mit:
+   FLASK_APP=app.py
+   FLASK_ENV=development
+   SECRET_KEY=your_secret_key
+   FACEBOOK_APP_ID=your_app_id
+   FACEBOOK_APP_SECRET=your_app_secret
+   HUGGINGFACE_API_KEY=your_api_key
+   ```
 
-4. Starten Sie die Anwendung:
-```bash
-python instaapp.py
-```
+5. Datenbank initialisieren:
+   ```bash
+   flask db upgrade
+   ```
 
-Die Anwendung ist dann unter `http://localhost:5000` erreichbar.
+6. Server starten:
+   ```bash
+   flask run
+   ```
+
+## Deployment
+
+Die Anwendung ist für das Deployment auf Render.com konfiguriert. Folgende Umgebungsvariablen müssen gesetzt werden:
+
+- `DATABASE_URL`: PostgreSQL Datenbank URL
+- `FACEBOOK_APP_ID`: Facebook App ID
+- `FACEBOOK_APP_SECRET`: Facebook App Secret
+- `HUGGINGFACE_API_KEY`: Hugging Face API Key
+- `SECRET_KEY`: Flask Secret Key
+- `FLASK_ENV`: production
+
+## Lizenz
+
+ 2024 Mischa Pridal. Alle Rechte vorbehalten.
