@@ -465,7 +465,7 @@ def facebook_login():
         'client_id': FACEBOOK_APP_ID,
         'redirect_uri': FACEBOOK_REDIRECT_URI,
         'state': state,
-        'scope': 'public_profile',  # Nur öffentliche Profildaten, keine E-Mail
+        'scope': 'public_profile,email',  # Basis-Berechtigungen für Admin/Entwickler
         'response_type': 'code'
     }
     
@@ -591,7 +591,7 @@ def dashboard():
             'https://graph.facebook.com/v19.0/me',
             params={
                 'access_token': access_token,
-                'fields': 'id,name,email,picture'
+                'fields': 'id,name,email,picture.type(large)'  # Größeres Profilbild anfordern
             }
         )
         user_response.raise_for_status()
