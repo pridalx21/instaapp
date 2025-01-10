@@ -449,51 +449,53 @@ def generate_image_with_stable_diffusion(prompt):
         app.logger.error(f"Error generating image: {str(e)}")
         raise
 
-# Facebook/Instagram API Configuration
+# Meta API Configuration
 FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET')
 FACEBOOK_REDIRECT_URI = f'{BASE_URL}/facebook/callback'
 
 @app.route('/facebook/login')
 def facebook_login():
-    # Generate a random state parameter to prevent CSRF attacks
-    state = secrets.token_urlsafe(32)  
+    state = secrets.token_urlsafe(32)
     session['fb_state'] = state
-    session.modified = True  
+    session.modified = True
     
-    # Facebook OAuth URL
-    fb_oauth_url = 'https://www.facebook.com/v19.0/dialog/oauth'
+    oauth_url = 'https://www.facebook.com/v19.0/dialog/oauth'
     params = {
         'client_id': FACEBOOK_APP_ID,
         'redirect_uri': FACEBOOK_REDIRECT_URI,
         'state': state,
-        'scope': 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,public_profile',
-        'response_type': 'code'  
+        'scope': 'public_profile,email',  # Minimale Berechtigungen für den Start
+        'response_type': 'code'
     }
     
-    # Debug-Logging
     app.logger.info(f"Starting Facebook OAuth flow with state: {state}")
-    app.logger.info(f"Redirect URI: {FACEBOOK_REDIRECT_URI}")
-    
-    return redirect(f"{fb_oauth_url}?{urlencode(params)}")
+    return redirect(f"{oauth_url}?{urlencode(params)}")
 
 @app.route('/facebook/callback')
 def facebook_callback():
     error = request.args.get('error')
     if error:
         app.logger.error(f"Facebook OAuth error: {error}")
+        app.logger.error(f"Error reason: {request.args.get('error_reason')}")
+        app.logger.error(f"Error description: {request.args.get('error_description')}")
+        app.logger.error(f"Full callback URL: {request.url}")
+        app.logger.error(f"All request args: {request.args}")
         flash(f"Facebook-Anmeldefehler: {error}", "error")
         return redirect(url_for('login'))
 
     code = request.args.get('code')
     state = request.args.get('state')
     
-    # Debug-Logging
-    app.logger.info(f"Received callback with state: {state}")
+    app.logger.info(f"Callback received - Code: {code[:10]}... State: {state}")
     app.logger.info(f"Session state: {session.get('fb_state')}")
+    app.logger.info(f"Full callback URL: {request.url}")
+    app.logger.info(f"All request args: {request.args}")
     
     if not state or state != session.get('fb_state'):
         app.logger.error("State mismatch or missing")
+        app.logger.error(f"Received state: {state}")
+        app.logger.error(f"Session state: {session.get('fb_state')}")
         flash("Sicherheitsfehler bei der Anmeldung", "error")
         return redirect(url_for('login'))
     
@@ -505,14 +507,29 @@ def facebook_callback():
     try:
         # Exchange code for access token
         token_url = 'https://graph.facebook.com/v19.0/oauth/access_token'
-        response = requests.get(token_url, params={
+        token_params = {
             'client_id': FACEBOOK_APP_ID,
             'client_secret': FACEBOOK_APP_SECRET,
             'code': code,
             'redirect_uri': FACEBOOK_REDIRECT_URI
-        })
+        }
+        app.logger.info(f"Requesting access token with params: {token_params}")
+        
+        response = requests.get(token_url, params=token_params)
+        app.logger.info(f"Token response status: {response.status_code}")
+        app.logger.info(f"Token response: {response.text}")
+        
         response.raise_for_status()
         token_data = response.json()
+        
+        # Debug: Print available permissions
+        debug_url = 'https://graph.facebook.com/v19.0/debug_token'
+        debug_response = requests.get(debug_url, params={
+            'input_token': token_data['access_token'],
+            'access_token': f"{FACEBOOK_APP_ID}|{FACEBOOK_APP_SECRET}"
+        })
+        debug_info = debug_response.json()
+        app.logger.info(f"Token debug info: {debug_info}")
         
         # Get user info from Facebook
         user_info_url = 'https://graph.facebook.com/v19.0/me'
@@ -522,6 +539,19 @@ def facebook_callback():
         })
         response.raise_for_status()
         user_info = response.json()
+        app.logger.info(f"User info: {user_info}")
+        
+        # Get long-lived access token
+        access_token_url = 'https://graph.facebook.com/v19.0/oauth/access_token'
+        response = requests.get(access_token_url, params={
+            'client_id': FACEBOOK_APP_ID,
+            'client_secret': FACEBOOK_APP_SECRET,
+            'grant_type': 'fb_exchange_token',
+            'fb_exchange_token': token_data['access_token']
+        })
+        response.raise_for_status()
+        long_lived_token_data = response.json()
+        access_token = long_lived_token_data['access_token']
         
         # Find or create user
         user = User.query.filter_by(facebook_id=user_info['id']).first()
@@ -536,7 +566,7 @@ def facebook_callback():
         
         # Update session
         session['user_id'] = user.id
-        session['facebook_token'] = token_data['access_token']
+        session['facebook_token'] = access_token
         session.modified = True
         
         flash("Erfolgreich mit Facebook angemeldet!", "success")
@@ -546,6 +576,38 @@ def facebook_callback():
         app.logger.error(f"Error during Facebook OAuth: {str(e)}")
         flash("Fehler bei der Facebook-Anmeldung", "error")
         return redirect(url_for('login'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    try:
+        access_token = session.get('facebook_token')
+        if not access_token:
+            flash("Bitte verbinden Sie sich mit Facebook", "error")
+            return redirect(url_for('login'))
+
+        # Basis-Profildaten abrufen
+        user_response = requests.get(
+            'https://graph.facebook.com/v19.0/me',
+            params={
+                'access_token': access_token,
+                'fields': 'id,name,email,picture'
+            }
+        )
+        user_response.raise_for_status()
+        user_data = user_response.json()
+        
+        app.logger.info(f"Retrieved Facebook user data: {user_data}")
+        
+        return render_template(
+            'dashboard.html',
+            user_data=user_data
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Error in dashboard: {str(e)}")
+        flash("Fehler beim Laden der Facebook-Daten", "error")
+        return render_template('dashboard.html', user_data=None)
 
 @app.route('/api/schedule-post', methods=['POST'])
 @login_required
@@ -633,80 +695,6 @@ def logout():
     session.clear()
     flash('Sie wurden erfolgreich abgemeldet.', 'info')
     return redirect(url_for('login'))
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    try:
-        # Get user info from session
-        user_info = session.get('user_info')
-        if not user_info:
-            app.logger.error("No user info in session")
-            flash('Bitte loggen Sie sich ein.', 'error')
-            return redirect(url_for('login'))
-            
-        # Verify Facebook token is still valid
-        try:
-            response = requests.get('https://graph.facebook.com/v19.0/me', params={
-                'access_token': user_info.get('facebook_token')
-            })
-            if response.status_code != 200:
-                app.logger.error(f"Facebook token validation failed: {response.text}")
-                flash('Ihre Facebook-Sitzung ist abgelaufen. Bitte loggen Sie sich erneut ein.', 'error')
-                return redirect(url_for('login'))
-        except requests.exceptions.RequestException as e:
-            app.logger.error(f"Facebook API error: {str(e)}")
-            flash('Fehler bei der Verbindung zu Facebook. Bitte versuchen Sie es erneut.', 'error')
-            return redirect(url_for('login'))
-        
-        # Get posts from database
-        try:
-            posts = Post.query.filter_by(user_id=user_info['user_id']).order_by(Post.scheduled_time.desc()).all()
-        except Exception as e:
-            app.logger.error(f"Database error while fetching posts: {str(e)}")
-            posts = []
-            flash('Fehler beim Laden der Posts. Bitte versuchen Sie es später erneut.', 'error')
-        
-        # Calculate statistics
-        current_time = datetime.now()
-        statistics = {
-            'total_posts': len(posts),
-            'scheduled_posts': len([p for p in posts if p.scheduled_time and p.scheduled_time > current_time]),
-            'published_posts': len([p for p in posts if p.status == 'published']),
-            'failed_posts': len([p for p in posts if p.status == 'failed']),
-            'pending_posts': len([p for p in posts if p.status == 'pending'])
-        }
-        
-        # Get Instagram account info if available
-        instagram_info = None
-        if user_info.get('facebook_token'):
-            try:
-                response = requests.get(
-                    'https://graph.facebook.com/v19.0/me/accounts',
-                    params={
-                        'access_token': user_info['facebook_token'],
-                        'fields': 'instagram_business_account{id,name,username,profile_picture_url}'
-                    }
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    for page in data.get('data', []):
-                        if 'instagram_business_account' in page:
-                            instagram_info = page['instagram_business_account']
-                            break
-            except Exception as e:
-                app.logger.error(f"Error fetching Instagram info: {str(e)}")
-        
-        return render_template('dashboard.html', 
-                             user_info=user_info,
-                             statistics=statistics,
-                             posts=posts,
-                             instagram_info=instagram_info)
-                             
-    except Exception as e:
-        app.logger.error(f"Dashboard error: {str(e)}")
-        flash('Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.', 'error')
-        return render_template('500.html'), 500
 
 @app.route('/scheduler')
 @login_required
