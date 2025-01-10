@@ -54,8 +54,8 @@ app.config.update(
 # Database configuration
 if os.environ.get('RENDER'):
     # Production database (PostgreSQL on Render.com)
-    db_url = os.environ.get('DATABASE_URL')
-    if db_url.startswith('postgres://'):
+    db_url = os.environ.get('DATABASE_URL', 'sqlite:///app.db')  # Fallback to SQLite if no DATABASE_URL
+    if db_url and db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 else:

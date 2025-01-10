@@ -11,7 +11,12 @@ services:
         value: production
       - key: FLASK_APP
         value: app.py
+      - key: RENDER
+        value: true
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
       sizeGB: 1
+    databases:
+      - name: instaapp_db
+        plan: free
