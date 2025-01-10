@@ -465,7 +465,7 @@ def facebook_login():
         'client_id': FACEBOOK_APP_ID,
         'redirect_uri': FACEBOOK_REDIRECT_URI,
         'state': state,
-        'scope': 'public_profile,email',  # Minimale Berechtigungen für den Start
+        'scope': 'public_profile',  # Nur öffentliche Profildaten, keine E-Mail
         'response_type': 'code'
     }
     
