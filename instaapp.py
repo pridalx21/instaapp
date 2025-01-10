@@ -48,7 +48,10 @@ app.config.update(
     MAX_CONTENT_LENGTH=100 * 1024 * 1024,  # 100MB max file size
     UPLOAD_FOLDER=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads'),
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    TEMPLATES_AUTO_RELOAD=True
+    TEMPLATES_AUTO_RELOAD=True,
+    SESSION_COOKIE_SECURE=True,  # Nur HTTPS
+    SESSION_COOKIE_HTTPONLY=True,  # Verhindert JavaScript-Zugriff
+    SESSION_COOKIE_SAMESITE='Lax'  # CSRF-Schutz
 )
 
 # Base URL Configuration
