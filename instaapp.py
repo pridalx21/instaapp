@@ -479,8 +479,6 @@ def facebook_callback():
         app.logger.error(f"Facebook OAuth error: {error}")
         app.logger.error(f"Error reason: {request.args.get('error_reason')}")
         app.logger.error(f"Error description: {request.args.get('error_description')}")
-        app.logger.error(f"Full callback URL: {request.url}")
-        app.logger.error(f"All request args: {request.args}")
         flash(f"Facebook-Anmeldefehler: {error}", "error")
         return redirect(url_for('login'))
 
@@ -569,13 +567,20 @@ def facebook_callback():
         session['facebook_token'] = access_token
         session.modified = True
         
-        flash("Erfolgreich mit Facebook angemeldet!", "success")
+        # Direkt zum Dashboard weiterleiten
         return redirect(url_for('dashboard'))
         
     except Exception as e:
         app.logger.error(f"Error during Facebook OAuth: {str(e)}")
         flash("Fehler bei der Facebook-Anmeldung", "error")
         return redirect(url_for('login'))
+
+@app.route('/login')
+def login():
+    if 'user_id' in session:
+        # Wenn bereits eingeloggt, direkt zum Dashboard
+        return redirect(url_for('dashboard'))
+    return render_template('login.html')
 
 @app.route('/dashboard')
 @login_required
@@ -666,29 +671,6 @@ def generate_post_function():
 @app.route('/')
 def root():
     return redirect(url_for('login'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if 'user_info' in session:
-        return redirect(url_for('dashboard'))
-        
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        user = User.query.filter_by(email=email).first()
-        
-        if user and user.check_password(password):
-            session['user_info'] = {
-                'username': user.username,
-                'user_id': user.id
-            }
-            flash('Erfolgreich angemeldet!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Ungültige Email oder Passwort', 'error')
-    
-    return render_template('login.html')
 
 @app.route('/logout')
 def logout():
