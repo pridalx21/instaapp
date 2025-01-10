@@ -454,6 +454,65 @@ FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET')
 FACEBOOK_REDIRECT_URI = f'{BASE_URL}/facebook/callback'
 
+# Rate Limiting für Facebook API Calls
+class RateLimit:
+    def __init__(self, max_calls, period):
+        self.max_calls = max_calls
+        self.period = period  # in Sekunden
+        self.calls = []
+    
+    def __call__(self):
+        now = time.time()
+        # Entferne alte Aufrufe
+        self.calls = [call for call in self.calls if call > now - self.period]
+        
+        if len(self.calls) >= self.max_calls:
+            sleep_time = self.calls[0] - (now - self.period)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+        
+        self.calls.append(now)
+
+# Cache für Facebook API Responses
+class APICache:
+    def __init__(self):
+        self.cache = {}
+    
+    def get(self, key):
+        if key in self.cache:
+            data, timestamp = self.cache[key]
+            if datetime.now() - timestamp < timedelta(minutes=5):  # 5 Minuten Cache
+                return data
+            del self.cache[key]
+        return None
+    
+    def set(self, key, data):
+        self.cache[key] = (data, datetime.now())
+
+# Globale Instanzen
+fb_rate_limit = RateLimit(max_calls=45, period=3600)  # 45 Aufrufe pro Stunde
+api_cache = APICache()
+
+def rate_limited_request(url, params):
+    """Führt einen Rate-Limited Request durch und cached das Ergebnis"""
+    cache_key = f"{url}:{str(params)}"
+    cached_data = api_cache.get(cache_key)
+    
+    if cached_data:
+        return cached_data
+    
+    fb_rate_limit()
+    response = requests.get(url, params=params)
+    
+    if response.status_code == 429:  # Rate Limit erreicht
+        time.sleep(60)  # Warte eine Minute
+        return rate_limited_request(url, params)  # Versuche erneut
+    
+    response.raise_for_status()
+    data = response.json()
+    api_cache.set(cache_key, data)
+    return data
+
 @app.route('/facebook/login')
 def facebook_login():
     state = secrets.token_urlsafe(32)
@@ -503,53 +562,25 @@ def facebook_callback():
         return redirect(url_for('login'))
     
     try:
-        # Exchange code for access token
-        token_url = 'https://graph.facebook.com/v19.0/oauth/access_token'
-        token_params = {
-            'client_id': FACEBOOK_APP_ID,
-            'client_secret': FACEBOOK_APP_SECRET,
-            'code': code,
-            'redirect_uri': FACEBOOK_REDIRECT_URI
-        }
-        app.logger.info(f"Requesting access token with params: {token_params}")
+        # Rate-Limited Token Exchange
+        token_data = rate_limited_request(
+            'https://graph.facebook.com/v19.0/oauth/access_token',
+            params={
+                'client_id': FACEBOOK_APP_ID,
+                'client_secret': FACEBOOK_APP_SECRET,
+                'code': code,
+                'redirect_uri': FACEBOOK_REDIRECT_URI
+            }
+        )
         
-        response = requests.get(token_url, params=token_params)
-        app.logger.info(f"Token response status: {response.status_code}")
-        app.logger.info(f"Token response: {response.text}")
-        
-        response.raise_for_status()
-        token_data = response.json()
-        
-        # Debug: Print available permissions
-        debug_url = 'https://graph.facebook.com/v19.0/debug_token'
-        debug_response = requests.get(debug_url, params={
-            'input_token': token_data['access_token'],
-            'access_token': f"{FACEBOOK_APP_ID}|{FACEBOOK_APP_SECRET}"
-        })
-        debug_info = debug_response.json()
-        app.logger.info(f"Token debug info: {debug_info}")
-        
-        # Get user info from Facebook
-        user_info_url = 'https://graph.facebook.com/v19.0/me'
-        response = requests.get(user_info_url, params={
-            'access_token': token_data['access_token'],
-            'fields': 'id,name,email'
-        })
-        response.raise_for_status()
-        user_info = response.json()
-        app.logger.info(f"User info: {user_info}")
-        
-        # Get long-lived access token
-        access_token_url = 'https://graph.facebook.com/v19.0/oauth/access_token'
-        response = requests.get(access_token_url, params={
-            'client_id': FACEBOOK_APP_ID,
-            'client_secret': FACEBOOK_APP_SECRET,
-            'grant_type': 'fb_exchange_token',
-            'fb_exchange_token': token_data['access_token']
-        })
-        response.raise_for_status()
-        long_lived_token_data = response.json()
-        access_token = long_lived_token_data['access_token']
+        # Rate-Limited User Info Request
+        user_info = rate_limited_request(
+            'https://graph.facebook.com/v19.0/me',
+            params={
+                'access_token': token_data['access_token'],
+                'fields': 'id,name,email,picture.type(large)'
+            }
+        )
         
         # Find or create user
         user = User.query.filter_by(facebook_id=user_info['id']).first()
@@ -562,12 +593,10 @@ def facebook_callback():
             db.session.add(user)
             db.session.commit()
         
-        # Update session
         session['user_id'] = user.id
-        session['facebook_token'] = access_token
+        session['facebook_token'] = token_data['access_token']
         session.modified = True
         
-        # Direkt zum Dashboard weiterleiten
         return redirect(url_for('dashboard'))
         
     except Exception as e:
@@ -591,18 +620,14 @@ def dashboard():
             flash("Bitte verbinden Sie sich mit Facebook", "error")
             return redirect(url_for('login'))
 
-        # Basis-Profildaten abrufen
-        user_response = requests.get(
+        # Rate-Limited API Call
+        user_data = rate_limited_request(
             'https://graph.facebook.com/v19.0/me',
             params={
                 'access_token': access_token,
-                'fields': 'id,name,email,picture.type(large)'  # Größeres Profilbild anfordern
+                'fields': 'id,name,email,picture.type(large)'
             }
         )
-        user_response.raise_for_status()
-        user_data = user_response.json()
-        
-        app.logger.info(f"Retrieved Facebook user data: {user_data}")
         
         return render_template(
             'dashboard.html',
