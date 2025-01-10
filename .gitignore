@@ -27,6 +27,11 @@ env/
 venv/
 ENV/
 
+# Environment variables
+.env
+!.env.example
+.env.*
+
 # IDE
 .idea/
 .vscode/
